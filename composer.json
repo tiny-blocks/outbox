@@ -1,0 +1,84 @@
+{
+    "name": "tiny-blocks/outbox",
+    "description": "Implements the Transactional Outbox pattern. Persists domain events atomically with aggregate state changes through a customizable table schema, reflection-based payload serialization, and built-in support for event schema versioning.",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "ddd",
+        "outbox",
+        "tiny-blocks",
+        "event-store",
+        "event-driven",
+        "domain-events",
+        "event-sourcing",
+        "event-versioning",
+        "event-persistence",
+        "event-serialization",
+        "transactional-outbox"
+    ],
+    "authors": [
+        {
+            "name": "Gustavo Freze de Araujo Santos",
+            "homepage": "https://github.com/gustavofreze"
+        }
+    ],
+    "homepage": "https://github.com/tiny-blocks/outbox",
+    "support": {
+        "issues": "https://github.com/tiny-blocks/outbox/issues",
+        "source": "https://github.com/tiny-blocks/outbox"
+    },
+    "require": {
+        "php": "^8.5",
+        "doctrine/dbal": "^4.0",
+        "ramsey/uuid": "^4.9",
+        "tiny-blocks/building-blocks": "^2.2",
+        "tiny-blocks/collection": "^2.3"
+    },
+    "require-dev": {
+        "ergebnis/composer-normalize": "^2.51",
+        "infection/infection": "^0.32",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^13.1",
+        "squizlabs/php_codesniffer": "^4.0",
+        "tiny-blocks/docker-container": "^2.0",
+        "tiny-blocks/environment-variable": "^1.2"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "autoload": {
+        "psr-4": {
+            "TinyBlocks\\Outbox\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Test\\TinyBlocks\\Outbox\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "ergebnis/composer-normalize": true,
+            "infection/extension-installer": true
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "mutation-test": "php ./vendor/bin/infection --threads=max --logger-html=report/coverage/mutation-report.html --coverage=report/coverage",
+        "phpcs": "php ./vendor/bin/phpcs --standard=PSR12 --extensions=php ./src",
+        "phpstan": "php ./vendor/bin/phpstan analyse -c phpstan.neon.dist --quiet --no-progress",
+        "review": [
+            "@phpcs",
+            "@phpstan"
+        ],
+        "test": "php -d memory_limit=2G ./vendor/bin/phpunit --configuration phpunit.xml tests",
+        "test-file": "php ./vendor/bin/phpunit --configuration phpunit.xml --no-coverage --filter",
+        "test-no-coverage": "php ./vendor/bin/phpunit --configuration phpunit.xml --no-coverage tests",
+        "tests": [
+            "@test",
+            "@mutation-test"
+        ],
+        "tests-no-coverage": [
+            "@test-no-coverage"
+        ]
+    }
+}
