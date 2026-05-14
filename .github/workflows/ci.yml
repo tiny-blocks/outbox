@@ -19,7 +19,7 @@ jobs:
       php-version: ${{ steps.config.outputs.php-version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Resolve PHP version from composer.json
         id: config
@@ -34,7 +34,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -49,7 +49,7 @@ jobs:
         run: composer install --no-progress --optimize-autoloader --prefer-dist --no-interaction
 
       - name: Upload vendor and composer.lock as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vendor-artifact
           path: |
@@ -63,7 +63,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -72,7 +72,7 @@ jobs:
           php-version: ${{ needs.load-config.outputs.php-version }}
 
       - name: Download vendor artifact from build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vendor-artifact
           path: .
@@ -93,7 +93,7 @@ jobs:
       TEST_DB_HOST_PORT: '33306'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -102,7 +102,7 @@ jobs:
           php-version: ${{ needs.load-config.outputs.php-version }}
 
       - name: Download vendor artifact from build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vendor-artifact
           path: .
