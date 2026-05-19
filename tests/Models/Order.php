@@ -21,9 +21,4 @@ final class Order implements EventualAggregateRoot
         $order->push(event: new OrderPlaced());
         return $order;
     }
-
-    protected function snapshotState(): array
-    {
-        return ['status' => 'placed'];
-    }
 }

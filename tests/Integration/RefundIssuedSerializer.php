@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace Test\TinyBlocks\Outbox\Mocks;
+namespace Test\TinyBlocks\Outbox\Integration;
 
-use Test\TinyBlocks\Outbox\Models\OrderPlaced;
+use Test\TinyBlocks\Outbox\Models\RefundIssued;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\Outbox\Serialization\PayloadSerializer;
 use TinyBlocks\Outbox\Serialization\SerializedPayload;
 
-final readonly class FallbackOrderPlacedSerializer implements PayloadSerializer
+final readonly class RefundIssuedSerializer implements PayloadSerializer
 {
     public function supports(EventRecord $record): bool
     {
-        return $record->event instanceof OrderPlaced;
+        return $record->event instanceof RefundIssued;
     }
 
     public function serialize(EventRecord $record): SerializedPayload
     {
-        return SerializedPayload::from(payload: '{"fallback":true}');
+        return SerializedPayload::from(payload: '{"type":"refund"}');
     }
 }

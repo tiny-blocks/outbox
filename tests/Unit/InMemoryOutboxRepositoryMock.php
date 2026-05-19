@@ -2,30 +2,26 @@
 
 declare(strict_types=1);
 
-namespace Test\TinyBlocks\Outbox\Mocks;
+namespace Test\TinyBlocks\Outbox\Unit;
 
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
-use TinyBlocks\Outbox\Exceptions\DuplicateAggregateSequence;
+use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\OutboxRequiresActiveTransaction;
 use TinyBlocks\Outbox\Exceptions\PayloadSerializerNotConfigured;
-use TinyBlocks\Outbox\Exceptions\SnapshotSerializerNotConfigured;
 use TinyBlocks\Outbox\OutboxRepository;
 use TinyBlocks\Outbox\Serialization\PayloadSerializers;
-use TinyBlocks\Outbox\Serialization\SnapshotSerializers;
 
 final class InMemoryOutboxRepositoryMock implements OutboxRepository
 {
-    private bool $transactionActive = false;
     private array $records = [];
-    private array $aggregateSequences = [];
+    private bool $transactionActive = false;
+    private array $aggregateVersions = [];
 
-    public function __construct(
-        private readonly PayloadSerializers $payloadSerializers,
-        private readonly SnapshotSerializers $snapshotSerializers
-    ) {
+    public function __construct(private readonly PayloadSerializers $payloadSerializers)
+    {
     }
 
     public function beginTransaction(): void
@@ -47,7 +43,7 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
     {
         $this->transactionActive = false;
         $this->records = [];
-        $this->aggregateSequences = [];
+        $this->aggregateVersions = [];
     }
 
     public function push(EventRecords $records): void
@@ -60,30 +56,24 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
             $payloadSerializer = $this->payloadSerializers->findFor(record: $record);
 
             if (is_null($payloadSerializer)) {
-                throw new PayloadSerializerNotConfigured(eventClass: $record->event::class);
-            }
-
-            $snapshotSerializer = $this->snapshotSerializers->findFor(record: $record);
-
-            if (is_null($snapshotSerializer)) {
-                throw SnapshotSerializerNotConfigured::for(aggregateType: $record->aggregateType);
+                throw PayloadSerializerNotConfigured::forEventClass(eventClass: $record->event::class);
             }
 
             $payloadSerializer->serialize(record: $record);
-            $snapshotSerializer->serialize(record: $record);
 
             $aggregateKey = sprintf(
                 '%s|%s|%d',
                 $record->aggregateType,
-                $record->identity->identityValue(),
-                $record->sequenceNumber->value
+                $record->aggregateId->identityValue(),
+                $record->aggregateVersion->value
             );
 
-            if (isset($this->aggregateSequences[$aggregateKey])) {
-                throw new DuplicateAggregateSequence(
-                    aggregateId: (string)$record->identity->identityValue(),
+            if (isset($this->aggregateVersions[$aggregateKey])) {
+                throw DuplicateAggregateVersion::forRecord(
+                    previous: null,
+                    aggregateId: $record->aggregateId->identityValue(),
                     aggregateType: $record->aggregateType,
-                    sequenceNumber: $record->sequenceNumber->value
+                    aggregateVersion: $record->aggregateVersion->value
                 );
             }
 
@@ -99,7 +89,7 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
                 );
             }
 
-            $this->aggregateSequences[$aggregateKey] = true;
+            $this->aggregateVersions[$aggregateKey] = true;
             $this->records[$eventId] = $record;
         });
     }

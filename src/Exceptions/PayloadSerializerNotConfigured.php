@@ -8,10 +8,16 @@ use RuntimeException;
 
 final class PayloadSerializerNotConfigured extends RuntimeException
 {
-    public function __construct(string $eventClass)
+    /**
+     * Creates a PayloadSerializerNotConfigured from the event class that has no serializer registered.
+     *
+     * @param string $eventClass The fully-qualified class name of the unsupported event.
+     * @return PayloadSerializerNotConfigured The created instance.
+     */
+    public static function forEventClass(string $eventClass): PayloadSerializerNotConfigured
     {
         $template = 'No payload serializer configured for event class <%s>.';
 
-        parent::__construct(sprintf($template, $eventClass));
+        return new PayloadSerializerNotConfigured(message: sprintf($template, $eventClass));
     }
 }

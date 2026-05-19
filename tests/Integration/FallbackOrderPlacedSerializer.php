@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Test\TinyBlocks\Outbox\Mocks;
+namespace Test\TinyBlocks\Outbox\Integration;
 
 use Test\TinyBlocks\Outbox\Models\OrderPlaced;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\Outbox\Serialization\PayloadSerializer;
 use TinyBlocks\Outbox\Serialization\SerializedPayload;
 
-final readonly class InvalidPayloadSerializer implements PayloadSerializer
+final readonly class FallbackOrderPlacedSerializer implements PayloadSerializer
 {
     public function supports(EventRecord $record): bool
     {
@@ -18,6 +18,6 @@ final readonly class InvalidPayloadSerializer implements PayloadSerializer
 
     public function serialize(EventRecord $record): SerializedPayload
     {
-        return SerializedPayload::from(payload: 'not json');
+        return SerializedPayload::from(payload: '{"fallback":true}');
     }
 }

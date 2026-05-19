@@ -8,31 +8,24 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
-use TinyBlocks\Outbox\Exceptions\DuplicateAggregateSequence;
+use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\OutboxRequiresActiveTransaction;
 use TinyBlocks\Outbox\Exceptions\PayloadSerializerNotConfigured;
-use TinyBlocks\Outbox\Exceptions\SnapshotSerializerNotConfigured;
 use TinyBlocks\Outbox\Internal\OutboxInsert;
 use TinyBlocks\Outbox\Schema\TableLayout;
 use TinyBlocks\Outbox\Serialization\PayloadSerializers;
-use TinyBlocks\Outbox\Serialization\SnapshotSerializerReflection;
-use TinyBlocks\Outbox\Serialization\SnapshotSerializers;
 
 final readonly class DoctrineOutboxRepository implements OutboxRepository
 {
     private TableLayout $tableLayout;
-    private SnapshotSerializers $snapshotSerializers;
 
     public function __construct(
         private Connection $connection,
-        private PayloadSerializers $payloadSerializers,
-        ?TableLayout $tableLayout = null,
-        ?SnapshotSerializers $snapshotSerializers = null
+        private PayloadSerializers $serializers,
+        ?TableLayout $tableLayout = null
     ) {
         $this->tableLayout = $tableLayout ?? TableLayout::default();
-        $this->snapshotSerializers = $snapshotSerializers
-            ?? SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()]);
     }
 
     public function push(EventRecords $records): void
@@ -42,34 +35,27 @@ final readonly class DoctrineOutboxRepository implements OutboxRepository
         }
 
         $records->each(actions: function (EventRecord $record): void {
-            $payloadSerializer = $this->payloadSerializers->findFor(record: $record);
+            $payloadSerializer = $this->serializers->findFor(record: $record);
 
             if (is_null($payloadSerializer)) {
-                throw new PayloadSerializerNotConfigured(eventClass: $record->event::class);
-            }
-
-            $snapshotSerializer = $this->snapshotSerializers->findFor(record: $record);
-
-            if (is_null($snapshotSerializer)) {
-                throw SnapshotSerializerNotConfigured::for(aggregateType: $record->aggregateType);
+                throw PayloadSerializerNotConfigured::forEventClass(eventClass: $record->event::class);
             }
 
             $insert = OutboxInsert::from(
                 record: $record,
                 payload: $payloadSerializer->serialize(record: $record),
-                snapshot: $snapshotSerializer->serialize(record: $record),
                 tableLayout: $this->tableLayout
             );
 
             try {
-                $this->connection->executeStatement($insert->sql, $insert->parameters);
+                $this->connection->executeStatement(sql: $insert->sql, params: $insert->parameters);
             } catch (UniqueConstraintViolationException $exception) {
                 if ($this->tableLayout->uniqueConstraint->isViolatedBy(exception: $exception)) {
-                    throw new DuplicateAggregateSequence(
-                        aggregateId: (string)$record->identity->identityValue(),
+                    throw DuplicateAggregateVersion::forRecord(
+                        previous: $exception,
+                        aggregateId: $record->aggregateId->identityValue(),
                         aggregateType: $record->aggregateType,
-                        sequenceNumber: $record->sequenceNumber->value,
-                        previous: $exception
+                        aggregateVersion: $record->aggregateVersion->value
                     );
                 }
 

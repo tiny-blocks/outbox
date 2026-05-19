@@ -1,9 +1,45 @@
 parameters:
-  paths:
-    - src
-  level: 9
-  tmpDir: report/phpstan
-  ignoreErrors:
-    - identifier: cast.string
-    - identifier: missingType.iterableValue
-  reportUnmatchedIgnoredErrors: true
+    level: max
+    paths:
+        - src
+        - tests
+    ignoreErrors:
+        # Identity values returned by the building-blocks contract are typed mixed; casting to string is required at the outbox boundary.
+        - identifier: cast.string
+          path: src/DoctrineOutboxRepository.php
+
+        # OutboxInsert::$parameters is an untyped iterable on an Internal collaborator; Doctrine expects array<int|string, mixed>.
+        - identifier: argument.type
+          path: src/DoctrineOutboxRepository.php
+
+        # Internal collaborators handle mixed identity values per design; PHPDoc is prohibited under src/Internal/.
+        - identifier: cast.string
+          path: src/Internal/BinaryIdentityColumn.php
+
+        - identifier: cast.string
+          path: src/Internal/StringIdentityColumn.php
+
+        # OutboxInsert::$parameters is a constructor parameter inside src/Internal/; PHPDoc is prohibited.
+        - identifier: missingType.iterableValue
+          path: src/Internal/OutboxInsert.php
+
+        # Test files are excluded from typed-array PHPDoc requirements.
+        - identifier: missingType.iterableValue
+          path: tests
+
+        # Doctrine fetchAssociative returns array|false at level max; tests assert on documented happy paths.
+        - identifier: offsetAccess.nonOffsetAccessible
+          path: tests
+
+        - identifier: argument.type
+          path: tests
+
+        - identifier: cast.int
+          path: tests
+
+        - identifier: cast.string
+          path: tests
+
+        - identifier: property.onlyWritten
+          path: tests
+    reportUnmatchedIgnoredErrors: true
