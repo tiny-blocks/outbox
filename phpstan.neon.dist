@@ -4,13 +4,13 @@ parameters:
         - src
         - tests
     ignoreErrors:
-        # Identity values returned by the building-blocks contract are typed mixed; casting to string is required at the outbox boundary.
-        - identifier: cast.string
-          path: src/DoctrineOutboxRepository.php
-
         # OutboxInsert::$parameters is an untyped iterable on an Internal collaborator; Doctrine expects array<int|string, mixed>.
         - identifier: argument.type
           path: src/DoctrineOutboxRepository.php
+
+        # aggregateId is intentionally typed mixed at the public exception boundary; sprintf at level max flags the mixed argument.
+        - identifier: argument.type
+          path: src/Exceptions/DuplicateAggregateVersion.php
 
         # Internal collaborators handle mixed identity values per design; PHPDoc is prohibited under src/Internal/.
         - identifier: cast.string
@@ -35,9 +35,6 @@ parameters:
           path: tests
 
         - identifier: cast.int
-          path: tests
-
-        - identifier: cast.string
           path: tests
 
         - identifier: property.onlyWritten

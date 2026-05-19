@@ -73,7 +73,7 @@
         ],
         "review": [
             "@php ./vendor/bin/phpcs --standard=phpcs.xml --extensions=php ./src ./tests",
-            "@php ./vendor/bin/phpstan analyse -c phpstan.neon.dist --quiet --no-progress"
+            "@php ./vendor/bin/phpstan analyse -c phpstan.neon.dist quiet --no-progress"
         ],
         "test-file": "@php ./vendor/bin/phpunit --configuration phpunit.xml --no-coverage --filter",
         "tests": [
