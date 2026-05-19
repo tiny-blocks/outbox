@@ -14,14 +14,13 @@ final class ColumnsBuilder
 
     private string $payload = 'payload';
     private string $revision = 'revision';
-    private string $snapshot = 'snapshot';
     private string $createdAt = 'created_at';
     private string $eventType = 'event_type';
     private string $occurredAt = 'occurred_at';
     private string $aggregateIdName = 'aggregate_id';
     private IdentityColumnType $aggregateIdType = IdentityColumnType::BINARY;
     private string $aggregateType = 'aggregate_type';
-    private string $sequenceNumber = 'sequence_number';
+    private string $aggregateVersion = 'aggregate_version';
 
     private function __construct()
     {
@@ -50,12 +49,6 @@ final class ColumnsBuilder
         return $this;
     }
 
-    public function withSnapshot(string $name): ColumnsBuilder
-    {
-        $this->snapshot = $name;
-        return $this;
-    }
-
     public function withEventType(string $name): ColumnsBuilder
     {
         $this->eventType = $name;
@@ -74,9 +67,9 @@ final class ColumnsBuilder
         return $this;
     }
 
-    public function withSequenceNumber(string $name): ColumnsBuilder
+    public function withAggregateVersion(string $name): ColumnsBuilder
     {
-        $this->sequenceNumber = $name;
+        $this->aggregateVersion = $name;
         return $this;
     }
 
@@ -100,13 +93,12 @@ final class ColumnsBuilder
             id: $this->idType->toColumn(name: $this->idName),
             payload: $this->payload,
             revision: $this->revision,
-            snapshot: $this->snapshot,
             createdAt: $this->createdAt,
             eventType: $this->eventType,
             occurredAt: $this->occurredAt,
             aggregateId: $this->aggregateIdType->toColumn(name: $this->aggregateIdName),
             aggregateType: $this->aggregateType,
-            sequenceNumber: $this->sequenceNumber
+            aggregateVersion: $this->aggregateVersion
         );
     }
 }

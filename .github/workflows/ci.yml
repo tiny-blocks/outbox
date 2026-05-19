@@ -11,8 +11,8 @@ permissions:
   contents: read
 
 jobs:
-  load-config:
-    name: Load config
+  resolve-php-version:
+    name: Resolve PHP version
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -29,7 +29,7 @@ jobs:
 
   build:
     name: Build
-    needs: load-config
+    needs: resolve-php-version
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -40,7 +40,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           tools: composer:2
-          php-version: ${{ needs.load-config.outputs.php-version }}
+          php-version: ${{ needs.resolve-php-version.outputs.php-version }}
 
       - name: Validate composer.json
         run: composer validate --no-interaction
@@ -58,7 +58,7 @@ jobs:
 
   auto-review:
     name: Auto review
-    needs: [load-config, build]
+    needs: [resolve-php-version, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -69,7 +69,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           tools: composer:2
-          php-version: ${{ needs.load-config.outputs.php-version }}
+          php-version: ${{ needs.resolve-php-version.outputs.php-version }}
 
       - name: Download vendor artifact from build
         uses: actions/download-artifact@v8
@@ -82,7 +82,7 @@ jobs:
 
   tests:
     name: Tests
-    needs: [load-config, auto-review]
+    needs: [resolve-php-version, auto-review]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -99,7 +99,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           tools: composer:2
-          php-version: ${{ needs.load-config.outputs.php-version }}
+          php-version: ${{ needs.resolve-php-version.outputs.php-version }}
 
       - name: Download vendor artifact from build
         uses: actions/download-artifact@v8

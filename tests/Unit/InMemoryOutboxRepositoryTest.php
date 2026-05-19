@@ -2,30 +2,22 @@
 
 declare(strict_types=1);
 
-namespace Test\TinyBlocks\Outbox;
+namespace Test\TinyBlocks\Outbox\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Ramsey\Uuid\Uuid;
-use Test\TinyBlocks\Outbox\Mocks\InMemoryOutboxRepositoryMock;
-use Test\TinyBlocks\Outbox\Mocks\InvalidPayloadSerializer;
-use Test\TinyBlocks\Outbox\Mocks\InvalidSnapshotSerializer;
-use Test\TinyBlocks\Outbox\Mocks\OrderPlacedSerializer;
 use Test\TinyBlocks\Outbox\Models\EventRecordFactory;
 use Test\TinyBlocks\Outbox\Models\Order;
 use Test\TinyBlocks\Outbox\Models\OrderPlaced;
+use TinyBlocks\BuildingBlocks\Aggregate\AggregateVersion;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
-use TinyBlocks\BuildingBlocks\Event\SequenceNumber;
-use TinyBlocks\Outbox\Exceptions\DuplicateAggregateSequence;
+use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\InvalidPayloadJson;
-use TinyBlocks\Outbox\Exceptions\InvalidSnapshotJson;
 use TinyBlocks\Outbox\Exceptions\OutboxRequiresActiveTransaction;
 use TinyBlocks\Outbox\Exceptions\PayloadSerializerNotConfigured;
-use TinyBlocks\Outbox\Exceptions\SnapshotSerializerNotConfigured;
 use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
 use TinyBlocks\Outbox\Serialization\PayloadSerializers;
-use TinyBlocks\Outbox\Serialization\SnapshotSerializerReflection;
-use TinyBlocks\Outbox\Serialization\SnapshotSerializers;
 
 final class InMemoryOutboxRepositoryTest extends TestCase
 {
@@ -33,8 +25,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
     {
         /** @Given an in-memory repository with configured serializers */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
         /** @And a transaction is started */
@@ -60,8 +51,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
     {
         /** @Given an in-memory repository with configured serializers */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
         /** @And a transaction is started */
@@ -73,13 +63,13 @@ final class InMemoryOutboxRepositoryTest extends TestCase
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
                 eventTypeName: 'OrderPlaced',
-                sequenceNumber: SequenceNumber::of(value: 1)
+                aggregateVersion: AggregateVersion::of(value: 1)
             ),
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
                 eventTypeName: 'OrderPlaced',
-                sequenceNumber: SequenceNumber::of(value: 2)
+                aggregateVersion: AggregateVersion::of(value: 2)
             )
         ]));
 
@@ -94,8 +84,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
     {
         /** @Given an in-memory repository without an active transaction */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
         /** @Then an exception requiring an active transaction is thrown */
@@ -115,8 +104,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
     {
         /** @Given an in-memory repository with no payload serializers configured */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFromEmpty(),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFromEmpty()
         );
 
         /** @And a transaction is started */
@@ -135,36 +123,11 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         ]));
     }
 
-    public function testPushWhenNoSnapshotSerializerMatchesThenSnapshotSerializerNotConfigured(): void
-    {
-        /** @Given an in-memory repository with no snapshot serializers configured */
-        $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFromEmpty()
-        );
-
-        /** @And a transaction is started */
-        $outbox->beginTransaction();
-
-        /** @Then an exception indicating no configured snapshot serializer is thrown */
-        $this->expectException(SnapshotSerializerNotConfigured::class);
-
-        /** @When pushing a record whose aggregate type has no matching snapshot serializer */
-        $outbox->push(records: EventRecords::createFrom(elements: [
-            EventRecordFactory::create(
-                event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
-            )
-        ]));
-    }
-
     public function testPushWhenPayloadSerializerReturnsInvalidJsonThenInvalidPayloadJson(): void
     {
         /** @Given an in-memory repository with a serializer that produces invalid JSON */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new InvalidPayloadSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new InvalidPayloadSerializer()])
         );
 
         /** @And a transaction is started */
@@ -183,36 +146,11 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         ]));
     }
 
-    public function testPushWhenSnapshotSerializerReturnsInvalidJsonThenInvalidSnapshotJson(): void
-    {
-        /** @Given an in-memory repository with a snapshot serializer that produces invalid JSON */
-        $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new InvalidSnapshotSerializer()])
-        );
-
-        /** @And a transaction is started */
-        $outbox->beginTransaction();
-
-        /** @Then an exception indicating invalid snapshot JSON is thrown */
-        $this->expectException(InvalidSnapshotJson::class);
-
-        /** @When pushing a record whose snapshot serializer produces malformed JSON */
-        $outbox->push(records: EventRecords::createFrom(elements: [
-            EventRecordFactory::create(
-                event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
-            )
-        ]));
-    }
-
     public function testPushWhenTwoRecordsShareTheSameIdThenDuplicateOutboxEvent(): void
     {
         /** @Given an in-memory repository with configured serializers */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
         /** @And a transaction is started */
@@ -241,17 +179,16 @@ final class InMemoryOutboxRepositoryTest extends TestCase
                 aggregateType: 'Order',
                 eventTypeName: 'OrderPlaced',
                 id: $eventId,
-                sequenceNumber: SequenceNumber::of(value: 2)
+                aggregateVersion: AggregateVersion::of(value: 2)
             )
         ]));
     }
 
-    public function testPushWhenTwoRecordsShareTheSameAggregateSequenceThenDuplicateAggregateSequence(): void
+    public function testPushWhenTwoRecordsShareTheSameAggregateVersionThenDuplicateAggregateVersion(): void
     {
         /** @Given an in-memory repository with configured serializers */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
         /** @And a transaction is started */
@@ -260,28 +197,28 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         /** @And a fixed aggregate identity shared by both records */
         $aggregateId = Uuid::uuid4()->toString();
 
-        /** @And a first record with the fixed aggregate and sequence number 1 is pushed */
+        /** @And a first record with the fixed aggregate and aggregate version 1 is pushed */
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
                 eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
-                sequenceNumber: SequenceNumber::of(value: 1)
+                aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
 
-        /** @Then a duplicate aggregate sequence exception is thrown */
-        $this->expectException(DuplicateAggregateSequence::class);
+        /** @Then a duplicate aggregate version exception is thrown */
+        $this->expectException(DuplicateAggregateVersion::class);
 
-        /** @When a second record with the same aggregate and sequence number is pushed */
+        /** @When a second record with the same aggregate and aggregate version is pushed */
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
                 eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
-                sequenceNumber: SequenceNumber::of(value: 1)
+                aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
     }
@@ -290,8 +227,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
     {
         /** @Given an in-memory repository with configured serializers */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
         /** @And a transaction is started */
@@ -311,8 +247,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
     {
         /** @Given an in-memory repository with a reflection payload serializer */
         $outbox = new InMemoryOutboxRepositoryMock(
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()]),
-            snapshotSerializers: SnapshotSerializers::createFrom(elements: [new SnapshotSerializerReflection()])
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()])
         );
 
         /** @And a transaction is started */

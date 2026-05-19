@@ -7,7 +7,6 @@ namespace TinyBlocks\Outbox\Internal;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\Outbox\Schema\TableLayout;
 use TinyBlocks\Outbox\Serialization\SerializedPayload;
-use TinyBlocks\Outbox\Serialization\SerializedSnapshot;
 
 final readonly class OutboxInsert
 {
@@ -18,18 +17,17 @@ final readonly class OutboxInsert
     public static function from(
         EventRecord $record,
         SerializedPayload $payload,
-        SerializedSnapshot $snapshot,
         TableLayout $tableLayout
     ): OutboxInsert {
         $template = <<<SQL
-        INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s)
         VALUES (:id, :aggregateId, :aggregateType, :eventType, :revision,
-                :sequenceNumber, :payload, :snapshot, :occurredAt)
+                :aggregateVersion, :payload, :occurredAt)
         SQL;
 
         $columns = $tableLayout->columns;
         $idValue = $columns->id->convert(identityValue: $record->id);
-        $aggregateIdValue = $columns->aggregateId->convert(identityValue: $record->identity->identityValue());
+        $aggregateIdValue = $columns->aggregateId->convert(identityValue: $record->aggregateId->identityValue());
 
         return new OutboxInsert(
             sql: sprintf(
@@ -40,21 +38,19 @@ final readonly class OutboxInsert
                 $columns->aggregateType,
                 $columns->eventType,
                 $columns->revision,
-                $columns->sequenceNumber,
+                $columns->aggregateVersion,
                 $columns->payload,
-                $columns->snapshot,
                 $columns->occurredAt
             ),
             parameters: [
-                'id'             => $idValue,
-                'aggregateId'    => $aggregateIdValue,
-                'aggregateType'  => $record->aggregateType,
-                'eventType'      => $record->type->value,
-                'revision'       => $record->revision->value,
-                'sequenceNumber' => $record->sequenceNumber->value,
-                'payload'        => $payload->toJson(),
-                'snapshot'       => $snapshot->toJson(),
-                'occurredAt'     => $record->occurredOn->toIso8601()
+                'id'               => $idValue,
+                'aggregateId'      => $aggregateIdValue,
+                'aggregateType'    => $record->aggregateType,
+                'eventType'        => $record->eventType->value,
+                'revision'         => $record->revision->value,
+                'aggregateVersion' => $record->aggregateVersion->value,
+                'payload'          => $payload->toJson(),
+                'occurredAt'       => $record->occurredAt->toIso8601()
             ]
         );
     }

@@ -8,10 +8,16 @@ use RuntimeException;
 
 final class InvalidPayloadJson extends RuntimeException
 {
-    public static function for(string $payload): InvalidPayloadJson
+    /**
+     * Creates an InvalidPayloadJson from the payload that failed to validate.
+     *
+     * @param string $payload The raw payload string that is not valid JSON.
+     * @return InvalidPayloadJson The created instance.
+     */
+    public static function forPayload(string $payload): InvalidPayloadJson
     {
-        $template = 'Payload is not valid JSON: %s';
+        $template = 'Payload is not valid JSON <%s>.';
 
-        return new InvalidPayloadJson(sprintf($template, $payload));
+        return new InvalidPayloadJson(message: sprintf($template, $payload));
     }
 }

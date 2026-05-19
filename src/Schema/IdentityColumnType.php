@@ -13,6 +13,12 @@ enum IdentityColumnType: string
     case BINARY = 'binary';
     case STRING = 'string';
 
+    /**
+     * Returns the IdentityColumn implementation matching this type.
+     *
+     * @param string $name The column name to assign to the resulting IdentityColumn.
+     * @return IdentityColumn The identity column wired to this type and column name.
+     */
     public function toColumn(string $name): IdentityColumn
     {
         return match ($this) {

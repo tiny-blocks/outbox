@@ -9,6 +9,12 @@ use TinyBlocks\Collection\Collection;
 
 final class PayloadSerializers extends Collection
 {
+    /**
+     * Returns the first payload serializer that supports the given record, or null when none matches.
+     *
+     * @param EventRecord $record The record whose payload serializer is being resolved.
+     * @return PayloadSerializer|null The matching serializer, or null when no element supports the record.
+     */
     public function findFor(EventRecord $record): ?PayloadSerializer
     {
         $serializer = $this->findBy(

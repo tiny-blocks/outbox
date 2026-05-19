@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Test\TinyBlocks\Outbox;
+namespace Test\TinyBlocks\Outbox\Integration;
 
 use Doctrine\DBAL\Connection;
 use TinyBlocks\Outbox\Schema\TableLayout;
@@ -18,20 +18,20 @@ final readonly class OutboxTableFactory
         $template = <<<SQL
         CREATE TABLE IF NOT EXISTS %s
         (
-            sequence BIGINT NOT NULL AUTO_INCREMENT UNIQUE,
-            %s BINARY(16) NOT NULL PRIMARY KEY,
+            %s BINARY(16)   NOT NULL,
+            %s JSON         NOT NULL,
+            %s INT          NOT NULL,
             %s VARCHAR(255) NOT NULL,
-            %s BINARY(16) NOT NULL,
+            %s TIMESTAMP(6) NOT NULL,
+            %s BINARY(16)   NOT NULL,
             %s VARCHAR(255) NOT NULL,
-            %s INT NOT NULL,
-            %s BIGINT NOT NULL,
-            %s JSON NOT NULL,
-            %s JSON NOT NULL,
-            %s DATETIME(6) NOT NULL,
-            %s DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-            INDEX idx_aggregate (%s),
-            UNIQUE KEY %s (%s, %s, %s)
-        )
+            %s BIGINT       NOT NULL,
+            %s TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+            PRIMARY KEY (%s),
+            CONSTRAINT %s UNIQUE (%s, %s, %s)
+        ) ENGINE = InnoDB
+          DEFAULT CHARSET = utf8mb4
+          COLLATE = utf8mb4_0900_ai_ci
         SQL;
 
         $connection->executeStatement(
@@ -39,20 +39,19 @@ final readonly class OutboxTableFactory
                 $template,
                 $tableLayout->tableName,
                 $tableLayout->columns->id->name,
-                $tableLayout->columns->aggregateType,
-                $tableLayout->columns->aggregateId->name,
-                $tableLayout->columns->eventType,
-                $tableLayout->columns->revision,
-                $tableLayout->columns->sequenceNumber,
                 $tableLayout->columns->payload,
-                $tableLayout->columns->snapshot,
+                $tableLayout->columns->revision,
+                $tableLayout->columns->eventType,
                 $tableLayout->columns->occurredAt,
-                $tableLayout->columns->createdAt,
                 $tableLayout->columns->aggregateId->name,
+                $tableLayout->columns->aggregateType,
+                $tableLayout->columns->aggregateVersion,
+                $tableLayout->columns->createdAt,
+                $tableLayout->columns->id->name,
                 $tableLayout->uniqueConstraint->name,
                 $tableLayout->columns->aggregateType,
                 $tableLayout->columns->aggregateId->name,
-                $tableLayout->columns->sequenceNumber
+                $tableLayout->columns->aggregateVersion
             )
         );
     }
@@ -62,20 +61,20 @@ final readonly class OutboxTableFactory
         $template = <<<SQL
         CREATE TABLE IF NOT EXISTS %s
         (
-            sequence BIGINT NOT NULL AUTO_INCREMENT UNIQUE,
-            %s VARCHAR(255) NOT NULL PRIMARY KEY,
+            %s VARCHAR(255) NOT NULL,
+            %s JSON         NOT NULL,
+            %s INT          NOT NULL,
+            %s VARCHAR(255) NOT NULL,
+            %s TIMESTAMP(6) NOT NULL,
             %s VARCHAR(255) NOT NULL,
             %s VARCHAR(255) NOT NULL,
-            %s VARCHAR(255) NOT NULL,
-            %s INT NOT NULL,
-            %s BIGINT NOT NULL,
-            %s JSON NOT NULL,
-            %s JSON NOT NULL,
-            %s DATETIME(6) NOT NULL,
-            %s DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-            INDEX idx_aggregate (%s),
-            UNIQUE KEY %s (%s, %s, %s)
-        )
+            %s BIGINT       NOT NULL,
+            %s TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+            PRIMARY KEY (%s),
+            CONSTRAINT %s UNIQUE (%s, %s, %s)
+        ) ENGINE = InnoDB
+          DEFAULT CHARSET = utf8mb4
+          COLLATE = utf8mb4_0900_ai_ci
         SQL;
 
         $connection->executeStatement(
@@ -83,20 +82,19 @@ final readonly class OutboxTableFactory
                 $template,
                 $tableLayout->tableName,
                 $tableLayout->columns->id->name,
-                $tableLayout->columns->aggregateType,
-                $tableLayout->columns->aggregateId->name,
-                $tableLayout->columns->eventType,
-                $tableLayout->columns->revision,
-                $tableLayout->columns->sequenceNumber,
                 $tableLayout->columns->payload,
-                $tableLayout->columns->snapshot,
+                $tableLayout->columns->revision,
+                $tableLayout->columns->eventType,
                 $tableLayout->columns->occurredAt,
-                $tableLayout->columns->createdAt,
                 $tableLayout->columns->aggregateId->name,
+                $tableLayout->columns->aggregateType,
+                $tableLayout->columns->aggregateVersion,
+                $tableLayout->columns->createdAt,
+                $tableLayout->columns->id->name,
                 $tableLayout->uniqueConstraint->name,
                 $tableLayout->columns->aggregateType,
                 $tableLayout->columns->aggregateId->name,
-                $tableLayout->columns->sequenceNumber
+                $tableLayout->columns->aggregateVersion
             )
         );
     }

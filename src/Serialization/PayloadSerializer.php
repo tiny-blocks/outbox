@@ -9,7 +9,7 @@ use TinyBlocks\BuildingBlocks\Event\EventRecord;
 interface PayloadSerializer
 {
     /**
-     * Whether this serializer handles the event in the given record.
+     * Tells whether this serializer handles the event in the given record.
      *
      * @param EventRecord $record The record being serialized.
      * @return bool True if this serializer can produce the payload for the event.
