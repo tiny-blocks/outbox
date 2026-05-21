@@ -9,8 +9,10 @@ use Ramsey\Uuid\Uuid;
 use Test\TinyBlocks\Outbox\Models\EventRecordFactory;
 use Test\TinyBlocks\Outbox\Models\Order;
 use Test\TinyBlocks\Outbox\Models\OrderPlaced;
+use Test\TinyBlocks\Outbox\Models\OrderPlacedTranslator;
 use TinyBlocks\BuildingBlocks\Aggregate\AggregateVersion;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
 use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\InvalidPayloadJson;
@@ -23,8 +25,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 {
     public function testPushWhenSingleRecordThenItIsPersisted(): void
     {
-        /** @Given an in-memory repository with configured serializers */
+        /** @Given an in-memory repository with a configured translator and serializer */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
@@ -49,8 +52,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
     public function testPushWhenMultipleRecordsThenAllArePersistedInOrder(): void
     {
-        /** @Given an in-memory repository with configured serializers */
+        /** @Given an in-memory repository with a configured translator and serializer */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
@@ -84,6 +88,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
     {
         /** @Given an in-memory repository without an active transaction */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
@@ -102,8 +107,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
     public function testPushWhenNoPayloadSerializerMatchesThenPayloadSerializerNotConfigured(): void
     {
-        /** @Given an in-memory repository with no payload serializers configured */
+        /** @Given an in-memory repository with a translator but no payload serializers */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFromEmpty()
         );
 
@@ -113,7 +119,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         /** @Then an exception indicating no configured payload serializer is thrown */
         $this->expectException(PayloadSerializerNotConfigured::class);
 
-        /** @When pushing a record whose event type has no matching serializer */
+        /** @When pushing a record whose integration event class has no matching serializer */
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
@@ -125,8 +131,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
     public function testPushWhenPayloadSerializerReturnsInvalidJsonThenInvalidPayloadJson(): void
     {
-        /** @Given an in-memory repository with a serializer that produces invalid JSON */
+        /** @Given an in-memory repository with a translator and a serializer that produces invalid JSON */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new InvalidPayloadSerializer()])
         );
 
@@ -148,8 +155,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
     public function testPushWhenTwoRecordsShareTheSameIdThenDuplicateOutboxEvent(): void
     {
-        /** @Given an in-memory repository with configured serializers */
+        /** @Given an in-memory repository with a configured translator and serializer */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
@@ -186,8 +194,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
     public function testPushWhenTwoRecordsShareTheSameAggregateVersionThenDuplicateAggregateVersion(): void
     {
-        /** @Given an in-memory repository with configured serializers */
+        /** @Given an in-memory repository with a configured translator and serializer */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
@@ -225,8 +234,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
     public function testPushWhenEventRecordsIsEmptyThenNoRecordIsPersisted(): void
     {
-        /** @Given an in-memory repository with configured serializers */
+        /** @Given an in-memory repository with a configured translator and serializer */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
         );
 
@@ -245,8 +255,9 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
     public function testPushWhenRealEventualAggregateRootThenEventRecordIsPersisted(): void
     {
-        /** @Given an in-memory repository with a reflection payload serializer */
+        /** @Given an in-memory repository with a translator and a reflection payload serializer */
         $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
             payloadSerializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()])
         );
 
@@ -261,5 +272,32 @@ final class InMemoryOutboxRepositoryTest extends TestCase
 
         /** @Then one event record is persisted in the repository */
         self::assertCount(1, $outbox->persistedRecords());
+    }
+
+    public function testPushWhenNoTranslatorMatchesThenRecordIsSilentlySkipped(): void
+    {
+        /** @Given an in-memory repository with no translators registered */
+        $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFromEmpty(),
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
+        );
+
+        /** @And a transaction is started */
+        $outbox->beginTransaction();
+
+        /** @When a record whose event has no matching translator is pushed */
+        $outbox->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(
+                event: new OrderPlaced(),
+                aggregateType: 'Order',
+                eventTypeName: 'OrderPlaced'
+            )
+        ]));
+
+        /** @And the transaction is committed */
+        $outbox->commit();
+
+        /** @Then no records are persisted and no exception is raised */
+        self::assertCount(0, $outbox->persistedRecords());
     }
 }

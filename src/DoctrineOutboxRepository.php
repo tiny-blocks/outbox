@@ -8,6 +8,8 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
 use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\OutboxRequiresActiveTransaction;
@@ -22,6 +24,7 @@ final readonly class DoctrineOutboxRepository implements OutboxRepository
 
     public function __construct(
         private Connection $connection,
+        private IntegrationEventTranslators $translators,
         private PayloadSerializers $serializers,
         ?TableLayout $tableLayout = null
     ) {
@@ -34,16 +37,29 @@ final readonly class DoctrineOutboxRepository implements OutboxRepository
             throw OutboxRequiresActiveTransaction::asMissing();
         }
 
-        $records->each(actions: function (EventRecord $record): void {
-            $payloadSerializer = $this->serializers->findFor(record: $record);
+        $records->each(actions: function (EventRecord $eventRecord): void {
+            $translator = $this->translators->findFor(record: $eventRecord);
+
+            if (is_null($translator)) {
+                return;
+            }
+
+            $integrationEventRecord = IntegrationEventRecord::from(
+                eventRecord: $eventRecord,
+                integrationEvent: $translator->translate(record: $eventRecord)
+            );
+
+            $payloadSerializer = $this->serializers->findFor(record: $integrationEventRecord);
 
             if (is_null($payloadSerializer)) {
-                throw PayloadSerializerNotConfigured::forEventClass(eventClass: $record->event::class);
+                throw PayloadSerializerNotConfigured::forEventClass(
+                    eventClass: $integrationEventRecord->event::class
+                );
             }
 
             $insert = OutboxInsert::from(
-                record: $record,
-                payload: $payloadSerializer->serialize(record: $record),
+                record: $integrationEventRecord,
+                payload: $payloadSerializer->serialize(record: $integrationEventRecord),
                 tableLayout: $this->tableLayout
             );
 
@@ -53,13 +69,16 @@ final readonly class DoctrineOutboxRepository implements OutboxRepository
                 if ($this->tableLayout->uniqueConstraint->isViolatedBy(exception: $exception)) {
                     throw DuplicateAggregateVersion::forRecord(
                         previous: $exception,
-                        aggregateId: $record->aggregateId->identityValue(),
-                        aggregateType: $record->aggregateType,
-                        aggregateVersion: $record->aggregateVersion->value
+                        aggregateId: $integrationEventRecord->aggregateId->identityValue(),
+                        aggregateType: $integrationEventRecord->aggregateType,
+                        aggregateVersion: $integrationEventRecord->aggregateVersion->value
                     );
                 }
 
-                throw DuplicateOutboxEvent::forRecord(eventId: $record->id, previous: $exception);
+                throw DuplicateOutboxEvent::forRecord(
+                    eventId: $integrationEventRecord->id,
+                    previous: $exception
+                );
             }
         });
     }

@@ -7,6 +7,8 @@ namespace Test\TinyBlocks\Outbox\Unit;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
 use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\OutboxRequiresActiveTransaction;
@@ -20,8 +22,10 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
     private bool $transactionActive = false;
     private array $aggregateVersions = [];
 
-    public function __construct(private readonly PayloadSerializers $payloadSerializers)
-    {
+    public function __construct(
+        private readonly IntegrationEventTranslators $translators,
+        private readonly PayloadSerializers $payloadSerializers
+    ) {
     }
 
     public function beginTransaction(): void
@@ -52,36 +56,49 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
             throw OutboxRequiresActiveTransaction::asMissing();
         }
 
-        $records->each(actions: function (EventRecord $record): void {
-            $payloadSerializer = $this->payloadSerializers->findFor(record: $record);
+        $records->each(actions: function (EventRecord $eventRecord): void {
+            $translator = $this->translators->findFor(record: $eventRecord);
 
-            if (is_null($payloadSerializer)) {
-                throw PayloadSerializerNotConfigured::forEventClass(eventClass: $record->event::class);
+            if (is_null($translator)) {
+                return;
             }
 
-            $payloadSerializer->serialize(record: $record);
+            $integrationEventRecord = IntegrationEventRecord::from(
+                eventRecord: $eventRecord,
+                integrationEvent: $translator->translate(record: $eventRecord)
+            );
+
+            $payloadSerializer = $this->payloadSerializers->findFor(record: $integrationEventRecord);
+
+            if (is_null($payloadSerializer)) {
+                throw PayloadSerializerNotConfigured::forEventClass(
+                    eventClass: $integrationEventRecord->event::class
+                );
+            }
+
+            $payloadSerializer->serialize(record: $integrationEventRecord);
 
             $aggregateKey = sprintf(
                 '%s|%s|%d',
-                $record->aggregateType,
-                $record->aggregateId->identityValue(),
-                $record->aggregateVersion->value
+                $integrationEventRecord->aggregateType,
+                $integrationEventRecord->aggregateId->identityValue(),
+                $integrationEventRecord->aggregateVersion->value
             );
 
             if (isset($this->aggregateVersions[$aggregateKey])) {
                 throw DuplicateAggregateVersion::forRecord(
                     previous: null,
-                    aggregateId: $record->aggregateId->identityValue(),
-                    aggregateType: $record->aggregateType,
-                    aggregateVersion: $record->aggregateVersion->value
+                    aggregateId: $integrationEventRecord->aggregateId->identityValue(),
+                    aggregateType: $integrationEventRecord->aggregateType,
+                    aggregateVersion: $integrationEventRecord->aggregateVersion->value
                 );
             }
 
-            $eventId = (string)$record->id;
+            $eventId = (string)$integrationEventRecord->id;
 
             if (isset($this->records[$eventId])) {
                 throw DuplicateOutboxEvent::forRecord(
-                    eventId: $record->id,
+                    eventId: $integrationEventRecord->id,
                     previous: new UniqueConstraintViolationException(
                         new DriverExceptionStub('Duplicate entry for key PRIMARY'),
                         null
@@ -90,7 +107,7 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
             }
 
             $this->aggregateVersions[$aggregateKey] = true;
-            $this->records[$eventId] = $record;
+            $this->records[$eventId] = $integrationEventRecord;
         });
     }
 }

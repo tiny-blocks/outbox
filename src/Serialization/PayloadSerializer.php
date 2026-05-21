@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace TinyBlocks\Outbox\Serialization;
 
-use TinyBlocks\BuildingBlocks\Event\EventRecord;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
 
 interface PayloadSerializer
 {
     /**
-     * Tells whether this serializer handles the event in the given record.
+     * Tells whether this serializer handles the integration event in the given record.
      *
-     * @param EventRecord $record The record being serialized.
-     * @return bool True if this serializer can produce the payload for the event.
+     * @param IntegrationEventRecord $record The record being serialized.
+     * @return bool True if this serializer can produce the payload for the integration event.
      */
-    public function supports(EventRecord $record): bool;
+    public function supports(IntegrationEventRecord $record): bool;
 
     /**
-     * Produces the persistent payload for the event in the record.
+     * Produces the persistent payload for the integration event in the record.
      *
-     * @param EventRecord $record The record being serialized.
+     * @param IntegrationEventRecord $record The record being serialized.
      * @return SerializedPayload The serialized payload.
      */
-    public function serialize(EventRecord $record): SerializedPayload;
+    public function serialize(IntegrationEventRecord $record): SerializedPayload;
 }
