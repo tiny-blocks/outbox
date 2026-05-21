@@ -13,19 +13,6 @@ final readonly class SerializedPayload
     }
 
     /**
-     * Creates a SerializedPayload from an associative array, encoding it as JSON.
-     *
-     * @param array<int|string, mixed> $payload The associative array to encode as the serialized payload.
-     * @return SerializedPayload The serialized payload with the JSON-encoded representation.
-     */
-    public static function fromArray(array $payload): SerializedPayload
-    {
-        $json = json_encode($payload, JSON_THROW_ON_ERROR);
-
-        return new SerializedPayload(payload: $json);
-    }
-
-    /**
      * Creates a SerializedPayload from a raw JSON string.
      *
      * @param string $payload The JSON-encoded payload string.
@@ -39,6 +26,19 @@ final readonly class SerializedPayload
         }
 
         return new SerializedPayload(payload: $payload);
+    }
+
+    /**
+     * Creates a SerializedPayload from an associative array, encoding it as JSON.
+     *
+     * @param array<int|string, mixed> $payload The associative array to encode as the serialized payload.
+     * @return SerializedPayload The serialized payload with the JSON-encoded representation.
+     */
+    public static function fromArray(array $payload): SerializedPayload
+    {
+        $json = json_encode($payload, JSON_THROW_ON_ERROR);
+
+        return new SerializedPayload(payload: $json);
     }
 
     /**
