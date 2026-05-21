@@ -8,6 +8,7 @@
     + [Expected table schema](#expected-table-schema)
     + [Wiring the repository](#wiring-the-repository)
     + [Producing events from an aggregate](#producing-events-from-an-aggregate)
+    + [Declaring integration events and translators](#declaring-integration-events-and-translators)
     + [Customizing the table layout](#customizing-the-table-layout)
     + [Writing a custom payload serializer](#writing-a-custom-payload-serializer)
     + [Event schema versioning](#event-schema-versioning)
@@ -18,16 +19,21 @@
 ## Overview
 
 The **Transactional Outbox** pattern solves the dual-write problem: persisting an aggregate state change and publishing
-a domain event must happen atomically. Doing both independently risks a crash leaving one side committed and the other
-lost. The outbox pattern records both in the same database transaction, delegating event delivery to a separate relay
-process.
+an integration event must happen atomically. Doing both independently risks a crash leaving one side committed and the
+other lost. The outbox pattern records both in the same database transaction, delegating event delivery to a separate
+relay process.
 
-This library is the write-side adapter. It persists outbox records via Doctrine DBAL and is opinionated on correctness.
-Transactions are always required and JSON validity is always checked, while leaving every schema decision to you: table
-name, column names, and identity column storage type are all configurable.
+This library is the write-side adapter. It persists integration events atomically with aggregate state via Doctrine
+DBAL. The pipeline is: `DomainEvent → IntegrationEventTranslator → IntegrationEvent → PayloadSerializer → INSERT`.
+Domain events without a registered translator are silently skipped: their absence from `IntegrationEventTranslators`
+is the canonical declaration that the event is internal to the bounded context and must not cross its boundary.
+
+The library is opinionated on correctness: transactions are always required, JSON validity is always checked, and every
+schema decision is left to you: table name, column names, and identity column storage type are all configurable.
 
 The library composes with [`tiny-blocks/building-blocks`](https://github.com/tiny-blocks/building-blocks), which
-contributes `DomainEvent`, `DomainEventBehavior`, `EventRecord`, `EventRecords`, `EventType`, `Revision`,
+contributes `DomainEvent`, `EventRecord`, `EventRecords`, `IntegrationEvent`, `IntegrationEventBehavior`,
+`IntegrationEventRecord`, `IntegrationEventTranslator`, `IntegrationEventTranslators`, `EventType`, `Revision`,
 `AggregateVersion`, and the `EventualAggregateRoot` family. This library provides the persistence step only.
 
 ## Installation
@@ -49,8 +55,8 @@ CREATE TABLE outbox_events
 (
     id                BINARY(16)   NOT NULL COMMENT 'The event identifier in Version 4 UUID format (e.g. 123e4567-e89b-12d3-a456-426614174000).',
     payload           JSON         NOT NULL COMMENT 'The event payload serialized as a JSON object (e.g. {"transaction_id":"..."}).',
-    revision          INT          NOT NULL COMMENT 'The positive integer indicating the payload schema revision of the event (e.g. 1).',
-    event_type        VARCHAR(255) NOT NULL COMMENT 'The event class name in CamelCase (e.g. TransactionConfirmed).',
+    revision          INT          NOT NULL COMMENT 'The positive integer indicating the payload schema revision of the integration event (e.g. 1).',
+    event_type        VARCHAR(255) NOT NULL COMMENT 'The integration event class name in CamelCase (e.g. PaymentConfirmed). Reflects the public contract, not the internal domain event.',
     occurred_at       TIMESTAMP(6) NOT NULL COMMENT 'The UTC date and time when the event occurred in ISO 8601 format (e.g. 2026-02-13T08:49:44.931408+00:00).',
     aggregate_id      BINARY(16)   NOT NULL COMMENT 'The aggregate root identifier in Version 4 UUID format (e.g. 123e4567-e89b-12d3-a456-426614174000).',
     aggregate_type    VARCHAR(255) NOT NULL COMMENT 'The aggregate root class name that produced the event in CamelCase (e.g. Transaction).',
@@ -81,41 +87,47 @@ CREATE TABLE outbox_events
 
 ### Wiring the repository
 
-`DoctrineOutboxRepository` requires a Doctrine DBAL `Connection` and a `PayloadSerializers` collection. The table layout
-defaults to table `outbox_events` with BINARY(16) identity columns.
+`DoctrineOutboxRepository` requires a Doctrine DBAL `Connection`, an `IntegrationEventTranslators` collection, and a
+`PayloadSerializers` collection. The table layout defaults to table `outbox_events` with BINARY(16) identity columns.
 
 ```php
 <?php
 
 declare(strict_types=1);
 
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
 use TinyBlocks\Outbox\DoctrineOutboxRepository;
 use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
 use TinyBlocks\Outbox\Serialization\PayloadSerializers;
 
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
-    serializers: serializers::createFrom(elements: [
+    translators: IntegrationEventTranslators::createFrom(elements: [
+        new OrderPlacedTranslator()
+    ]),
+    serializers: PayloadSerializers::createFrom(elements: [
         new PayloadSerializerReflection()
     ])
 );
 ```
 
-`PayloadSerializerReflection` serializes any event whose public properties are scalars or `JsonSerializable`. Register
-specific serializers before it for events that need custom shaping (see
+`PayloadSerializerReflection` serializes any integration event whose public properties are scalars or
+`JsonSerializable`. Register specific serializers before it for integration events that need custom shaping (see
 [Writing a custom payload serializer](#writing-a-custom-payload-serializer)).
 
-| Parameter     | Type                 | Required | Description                                                                      |
-|---------------|----------------------|:--------:|----------------------------------------------------------------------------------|
-| `connection`  | `Connection`         |   Yes    | Doctrine DBAL connection used for all INSERT statements.                         |
-| `serializers` | `PayloadSerializers` |   Yes    | Ordered collection of payload serializers, first match wins.                     |
-| `tableLayout` | `TableLayout`        |    No    | Table and column configuration, defaults to `outbox_events` with BINARY(16) ids. |
+| Parameter     | Type                          | Required | Description                                                                                                                                |
+|---------------|-------------------------------|:--------:|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `connection`  | `Connection`                  |   Yes    | Doctrine DBAL connection used for all INSERT statements.                                                                                   |
+| `translators` | `IntegrationEventTranslators` |   Yes    | Ordered collection of translators mapping domain events to integration events. Records without a matching translator are silently skipped. |
+| `serializers` | `PayloadSerializers`          |   Yes    | Ordered collection of payload serializers operating on integration event records, first match wins.                                        |
+| `tableLayout` | `TableLayout`                 |    No    | Table and column configuration, defaults to `outbox_events` with BINARY(16) ids.                                                           |
 
 ### Producing events from an aggregate
 
 Aggregates that implement `EventualAggregateRoot` and use `EventualAggregateRootBehavior` record domain events in an
 internal buffer as state changes occur. The application layer drains that buffer into the outbox inside the same
-database transaction that persists the aggregate state.
+database transaction that persists the aggregate state. The library filters and translates each domain event
+internally: you never pass integration events directly.
 
 ```php
 <?php
@@ -125,7 +137,7 @@ declare(strict_types=1);
 use TinyBlocks\BuildingBlocks\Event\DomainEvent;
 use TinyBlocks\BuildingBlocks\Event\DomainEventBehavior;
 
-# A domain event. DomainEventBehavior provides revision() defaulting to revision 1.
+# A domain event. Stays internal to the bounded context; a translator maps it to the public contract.
 final readonly class OrderPlaced implements DomainEvent
 {
     use DomainEventBehavior;
@@ -152,6 +164,129 @@ try {
 The aggregate instance is use-once: its recorded-events buffer is never cleared by the library. Discard the instance
 after `push()`. Re-saving the same instance pushes the same records again and throws `DuplicateOutboxEvent`.
 
+### Declaring integration events and translators
+
+#### Declaring an integration event
+
+An integration event is the stable public contract that flows across bounded contexts. Declare it with
+`IntegrationEventBehavior`, which provides a default `revision()` returning revision 1. Override `revision()` only
+when the event's payload structure changes in a backward-incompatible way.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use TinyBlocks\BuildingBlocks\Event\IntegrationEvent;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventBehavior;
+use TinyBlocks\BuildingBlocks\Event\Revision;
+
+# Integration event class names use ubiquitous-language terms, not a suffix like IntegrationEvent.
+final readonly class OrderShipped implements IntegrationEvent
+{
+    use IntegrationEventBehavior;
+
+    public function __construct(public string $orderId)
+    {
+    }
+}
+
+# Bump revision() only when the public payload schema changes.
+final readonly class PaymentConfirmed implements IntegrationEvent
+{
+    use IntegrationEventBehavior;
+
+    public function revision(): Revision
+    {
+        return Revision::of(value: 2);
+    }
+}
+```
+
+#### Writing a translator
+
+A translator implements the Anti-Corruption Layer between the internal domain model and the public contract.
+`supports()` checks `instanceof` on the concrete domain event class. `translate()` constructs and returns the
+integration event.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use TinyBlocks\BuildingBlocks\Event\EventRecord;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEvent;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslator;
+
+final readonly class OrderPlacedTranslator implements IntegrationEventTranslator
+{
+    public function supports(EventRecord $record): bool
+    {
+        return $record->event instanceof OrderPlaced;
+    }
+
+    public function translate(EventRecord $record): IntegrationEvent
+    {
+        return new OrderShipped(orderId: $record->event->orderId);
+    }
+}
+```
+
+#### Registering translators
+
+Pass an `IntegrationEventTranslators` collection to the repository constructor. Lookup follows first-match-wins
+semantics: the first translator whose `supports()` returns `true` is used.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
+use TinyBlocks\Outbox\DoctrineOutboxRepository;
+use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
+use TinyBlocks\Outbox\Serialization\PayloadSerializers;
+
+$repository = new DoctrineOutboxRepository(
+    connection: $connection,
+    translators: IntegrationEventTranslators::createFrom(elements: [
+        new OrderPlacedTranslator(),
+        new PaymentReceivedTranslator()
+    ]),
+    serializers: PayloadSerializers::createFrom(elements: [
+        new PayloadSerializerReflection()
+    ])
+);
+```
+
+#### Domain events without translators
+
+Domain events that have no registered translator are silently skipped. They never enter the outbox. This is the
+canonical way to declare that an event is internal to the bounded context: registering a translator is the explicit
+opt-in for cross-context publication.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
+use TinyBlocks\Outbox\DoctrineOutboxRepository;
+use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
+use TinyBlocks\Outbox\Serialization\PayloadSerializers;
+
+# InventoryReserved has no translator registered: it is purely internal and will never be persisted.
+$repository = new DoctrineOutboxRepository(
+    connection: $connection,
+    translators: IntegrationEventTranslators::createFrom(elements: [
+        new OrderPlacedTranslator()
+    ]),
+    serializers: PayloadSerializers::createFrom(elements: [
+        new PayloadSerializerReflection()
+    ])
+);
+```
+
 ### Customizing the table layout
 
 `TableLayout::builder()` controls the table name. `Columns::builder()` renames individual columns and switches identity
@@ -162,6 +297,7 @@ column storage between BINARY(16) and STRING.
 
 declare(strict_types=1);
 
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
 use TinyBlocks\Outbox\DoctrineOutboxRepository;
 use TinyBlocks\Outbox\Schema\Columns;
 use TinyBlocks\Outbox\Schema\IdentityColumnType;
@@ -182,7 +318,8 @@ $tableLayout = TableLayout::builder()
 
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
-    serializers: serializers::createFrom(elements: [new PayloadSerializerReflection()]),
+    translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+    serializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()]),
     tableLayout: $tableLayout
 );
 ```
@@ -220,21 +357,24 @@ violations with SQLite fall under `DuplicateOutboxEvent`.
 
 ### Writing a custom payload serializer
 
-`PayloadSerializerReflection` covers events whose public properties are scalars or `JsonSerializable`. Implement
-`PayloadSerializer` explicitly for events that contain value objects or domain types that need custom JSON shaping.
+`PayloadSerializerReflection` covers integration events whose public properties are scalars or `JsonSerializable`.
+Implement `PayloadSerializer` explicitly for integration events that contain value objects or domain types that need
+custom JSON shaping.
 
-Both `supports()` and `serialize()` receive the full `EventRecord`, giving access to `$record->event`,
-`$record->aggregateType`, `$record->aggregateId`, `$record->aggregateVersion`, and all other fields when routing or
-shaping the payload.
+Both `supports()` and `serialize()` receive the full `IntegrationEventRecord`, giving access to `$record->event`
+(the `IntegrationEvent`), `$record->aggregateType`, `$record->aggregateId`, `$record->aggregateVersion`, and all
+other envelope fields when routing or shaping the payload.
 
-Use `match (true)` in `serialize()` to handle multiple event types from the same aggregate in a single serializer:
+Use `match (true)` in `serialize()` to handle multiple integration event types from the same aggregate in a single
+serializer:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-use TinyBlocks\BuildingBlocks\Event\EventRecord;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
 use TinyBlocks\Outbox\DoctrineOutboxRepository;
 use TinyBlocks\Outbox\Serialization\PayloadSerializer;
 use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
@@ -243,20 +383,20 @@ use TinyBlocks\Outbox\Serialization\SerializedPayload;
 
 final readonly class OrderEventSerializer implements PayloadSerializer
 {
-    public function supports(EventRecord $record): bool
+    public function supports(IntegrationEventRecord $record): bool
     {
-        return $record->event instanceof OrderPlaced || $record->event instanceof OrderShipped;
+        return $record->event instanceof OrderShipped || $record->event instanceof OrderCanceled;
     }
 
-    public function serialize(EventRecord $record): SerializedPayload
+    public function serialize(IntegrationEventRecord $record): SerializedPayload
     {
         return match (true) {
-            $record->event instanceof OrderPlaced => SerializedPayload::from(
+            $record->event instanceof OrderShipped => SerializedPayload::from(
                 payload: json_encode(['orderId' => $record->event->orderId], JSON_THROW_ON_ERROR)
             ),
-            $record->event instanceof OrderShipped => SerializedPayload::from(
+            $record->event instanceof OrderCanceled => SerializedPayload::from(
                 payload: json_encode(
-                    ['orderId' => $record->event->orderId, 'shippedAt' => $record->event->shippedAt],
+                    ['orderId' => $record->event->orderId, 'reason' => $record->event->reason],
                     JSON_THROW_ON_ERROR
                 )
             )
@@ -268,7 +408,11 @@ final readonly class OrderEventSerializer implements PayloadSerializer
 # PayloadSerializerReflection always returns true from supports(), so it must come last.
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
-    serializers: serializers::createFrom(elements: [
+    translators: IntegrationEventTranslators::createFrom(elements: [
+        new OrderPlacedTranslator(),
+        new OrderCanceledTranslator()
+    ]),
+    serializers: PayloadSerializers::createFrom(elements: [
         new OrderEventSerializer(),
         new PayloadSerializerReflection()
     ])
@@ -282,24 +426,26 @@ library handles encoding internally.
 
 ### Event schema versioning
 
-Each domain event declares its schema revision via `DomainEvent::revision()`. `DomainEventBehavior` provides the
-default implementation, returning revision 1. Override `revision()` when the event's payload structure changes:
+Each integration event declares its schema revision via `IntegrationEvent::revision()`. `IntegrationEventBehavior`
+provides the default implementation, returning revision 1. Override `revision()` when the integration event's payload
+structure changes in a backward-incompatible way:
 
 ```php
 <?php
 
 declare(strict_types=1);
 
-use TinyBlocks\BuildingBlocks\Event\DomainEvent;
-use TinyBlocks\BuildingBlocks\Event\DomainEventBehavior;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEvent;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventBehavior;
 use TinyBlocks\BuildingBlocks\Event\Revision;
 
-# Revision 2: a currency field was added. Override revision() to declare the schema bump.
-final readonly class OrderPlaced implements DomainEvent
+# Revision 2: a currency field was added to the public contract. Override revision() to declare the schema bump.
+final readonly class OrderShipped implements IntegrationEvent
 {
-    use DomainEventBehavior;
+    use IntegrationEventBehavior;
 
-    public function __construct(public string $orderId, public string $currency) {
+    public function __construct(public string $orderId, public string $currency)
+    {
     }
 
     public function revision(): Revision
@@ -315,19 +461,20 @@ migrate events from older revisions to the current schema on the read side.
 
 ## FAQ
 
-### 01. Why don't I need a custom serializer for each event?
+### 01. Why don't I need a custom serializer for each integration event?
 
-`PayloadSerializerReflection` uses PHP's `get_object_vars()` to serialize any event whose public properties are scalars
-or `JsonSerializable`. It always returns `true` from `supports()`, making it a universal catch-all when registered last
-in `serializers::createFrom()`. Only events with value objects or domain types that are not directly
-JSON-encodable require an explicit serializer.
+`PayloadSerializerReflection` uses PHP's `get_object_vars()` to serialize any integration event whose public
+properties are scalars or `JsonSerializable`. It always returns `true` from `supports()`, making it a universal
+catch-all when registered last in `PayloadSerializers::createFrom()`. Only integration events with value objects or
+domain types that are not directly JSON-encodable require an explicit serializer.
 
 ### 02. What is the difference between revision and aggregate_version?
 
-`revision` is a schema version declared on the **event class** via `DomainEvent::revision()`. It starts at 1 and is
-bumped when the event's payload structure changes. `aggregate_version` is the **aggregate's internal version counter**,
-incremented once per recorded event and used for optimistic offline locking. They are independent: `revision` tracks
-event schema evolution, `aggregate_version` tracks the position of an event within a single aggregate's history.
+`revision` is a schema version declared on the **integration event class** via `IntegrationEvent::revision()`. It
+starts at 1 and is bumped when the event's public payload structure changes. `aggregate_version` is the
+**aggregate's internal version counter**, incremented once per recorded event and used for optimistic offline
+locking. They are independent: `revision` tracks integration event schema evolution, `aggregate_version` tracks
+the position of an event within a single aggregate's history.
 
 ### 03. Why does push require an active transaction?
 
@@ -364,12 +511,13 @@ time-ordered identifier for `id` (e.g. UUID v7), or ordering by `created_at` on 
 when the domain event happened in the producing process and is subject to clock skew, do not use it as a primary
 ordering source.
 
-### 08. Why does PayloadSerializer receive EventRecord instead of DomainEvent?
+### 08. Why does PayloadSerializer receive IntegrationEventRecord instead of IntegrationEvent?
 
-Routing and shaping decisions often depend on context beyond the event itself. For example, a single serializer may
-handle events from a specific aggregate type (`$record->aggregateType === 'Order'`), or the payload shaping may vary
-based on the aggregate version (`$record->aggregateVersion`). Receiving the full `EventRecord` in both `supports()` and
-`serialize()` gives serializers access to all available context without requiring any additional indirection.
+Routing and shaping decisions often depend on context beyond the event payload itself. For example, a single serializer
+may handle integration events from a specific aggregate type (`$record->aggregateType === 'Order'`), or the payload
+shaping may vary based on the aggregate version (`$record->aggregateVersion`). Receiving the full
+`IntegrationEventRecord` in both `supports()` and `serialize()` gives serializers access to all available envelope
+context without requiring any additional indirection.
 
 ### 09. How does the library handle transient database errors?
 
@@ -380,6 +528,23 @@ caller.
 
 The consumer is responsible for any retry policy. A common pattern is to wrap the unit of work (aggregate save +
 outbox push) in a retry loop that catches transient exceptions and re-executes the entire transaction.
+
+### 10. Why are domain events without a translator silently skipped instead of failing loudly?
+
+The absence of a translator is the canonical declaration that the event is internal to the bounded context. Failing
+loudly would force every internal domain event to either register a no-op translator or be filtered before the call to
+`push()`, both of which leak the public-contract concern into code that should not know about it. Silent skip keeps the
+boundary one-sided: registering a translator is the explicit opt-in for cross-context publication. Code that does not
+register a translator is correct by design.
+
+### 11. Why doesn't the library accept a DomainEvent directly for publication?
+
+The Anti-Corruption Layer rationale established in `tiny-blocks/building-blocks` applies here (see Vaughn Vernon,
+*Implementing Domain-Driven Design*, Addison-Wesley, 2013, Chapter 3, "Context Maps"). The public contract must evolve
+independently of the internal model. Accepting a domain event directly reintroduces the coupling that the integration
+event abstraction exists to eliminate: every change to the domain event's shape would affect external consumers. The
+cost of writing a translator is small and the gain in contract stability is the entire reason for the design. See
+the `IntegrationEventTranslator` documentation in `tiny-blocks/building-blocks` for the full rationale.
 
 ## License
 

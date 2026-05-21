@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Test\TinyBlocks\Outbox\Integration;
 
-use Test\TinyBlocks\Outbox\Models\RefundIssued;
-use TinyBlocks\BuildingBlocks\Event\EventRecord;
+use Test\TinyBlocks\Outbox\Models\RefundCompleted;
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
 use TinyBlocks\Outbox\Serialization\PayloadSerializer;
 use TinyBlocks\Outbox\Serialization\SerializedPayload;
 
 final readonly class RefundIssuedSerializer implements PayloadSerializer
 {
-    public function supports(EventRecord $record): bool
+    public function supports(IntegrationEventRecord $record): bool
     {
-        return $record->event instanceof RefundIssued;
+        return $record->event instanceof RefundCompleted;
     }
 
-    public function serialize(EventRecord $record): SerializedPayload
+    public function serialize(IntegrationEventRecord $record): SerializedPayload
     {
         return SerializedPayload::from(payload: '{"type":"refund"}');
     }
