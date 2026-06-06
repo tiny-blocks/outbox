@@ -1,21 +1,12 @@
 {
-    "name": "tiny-blocks/outbox",
-    "description": "Write-side adapter for the Transactional Outbox pattern that persists domain events atomically with aggregate state through Doctrine DBAL.",
+    "name": "tiny-blocks/<lib-name>",
+    "description": "<one short sentence describing what the library does>",
     "license": "MIT",
     "type": "library",
     "keywords": [
-        "ddd",
-        "outbox",
         "tiny-blocks",
-        "event-store",
-        "event-driven",
-        "domain-events",
-        "event-sourcing",
-        "event-versioning",
-        "event-persistence",
-        "integration-events",
-        "event-serialization",
-        "transactional-outbox"
+        "<topic-1>",
+        "<topic-2>"
     ],
     "authors": [
         {
@@ -23,38 +14,31 @@
             "homepage": "https://github.com/gustavofreze"
         }
     ],
-    "homepage": "https://github.com/tiny-blocks/outbox",
+    "homepage": "https://github.com/tiny-blocks/<lib-name>",
     "support": {
-        "issues": "https://github.com/tiny-blocks/outbox/issues",
-        "source": "https://github.com/tiny-blocks/outbox"
+        "issues": "https://github.com/tiny-blocks/<lib-name>/issues",
+        "source": "https://github.com/tiny-blocks/<lib-name>"
     },
     "require": {
-        "php": "^8.5",
-        "doctrine/dbal": "^4.4",
-        "ramsey/uuid": "^4.9",
-        "tiny-blocks/building-blocks": "^5.0",
-        "tiny-blocks/collection": "^2.4",
-        "tiny-blocks/mapper": "^3.0"
+        "php": "^8.5"
     },
     "require-dev": {
         "ergebnis/composer-normalize": "^2.52",
         "infection/infection": "^0.33",
         "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^13.1",
-        "squizlabs/php_codesniffer": "^4.0",
-        "tiny-blocks/docker-container": "^2.5",
-        "tiny-blocks/environment-variable": "^1.2"
+        "squizlabs/php_codesniffer": "^4.0"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
     "autoload": {
         "psr-4": {
-            "TinyBlocks\\Outbox\\": "src/"
+            "TinyBlocks\\<LibName>\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Test\\TinyBlocks\\Outbox\\": "tests/"
+            "Test\\TinyBlocks\\<LibName>\\": "tests/"
         }
     },
     "config": {

@@ -19,7 +19,6 @@ use Test\TinyBlocks\Outbox\Unit\OrderPlacedSerializer;
 use TinyBlocks\BuildingBlocks\Aggregate\AggregateVersion;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
 use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
-use TinyBlocks\BuildingBlocks\Event\Revision;
 use TinyBlocks\Outbox\DoctrineOutboxRepository;
 use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
@@ -57,8 +56,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $records = EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]);
 
@@ -89,8 +87,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -117,8 +114,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -145,8 +141,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -173,13 +168,11 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             ),
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -210,7 +203,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 id: $recordId
             )
         ]));
@@ -239,8 +231,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $records = EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]);
 
@@ -274,8 +265,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new RefundIssued(),
-                aggregateType: 'Refund',
-                eventTypeName: 'RefundIssued'
+                aggregateType: 'Refund'
             )
         ]));
 
@@ -305,8 +295,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $records = EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new RefundIssued(),
-                aggregateType: 'Refund',
-                eventTypeName: 'RefundIssued'
+                aggregateType: 'Refund'
             )
         ]);
 
@@ -333,8 +322,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $records = EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]);
 
@@ -371,7 +359,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
@@ -388,7 +375,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
@@ -429,8 +415,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -484,8 +469,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -541,7 +525,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId
             )
         ]));
@@ -570,8 +553,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
-                revision: Revision::of(value: 2),
                 occurredAt: Instant::fromString(value: '2024-06-01 12:00:00.000000'),
                 aggregateVersion: AggregateVersion::of(value: 3)
             )
@@ -628,7 +609,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 id: $recordId
             )
         ]));
@@ -692,7 +672,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateVersion: AggregateVersion::of(value: 5)
             )
         ]));
@@ -766,7 +745,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         self::$connection->beginTransaction();
 
         /** @When pushing the aggregate's recorded events */
-        $repository->push(records: Order::place(orderId: Uuid::uuid4()->toString())->recordedEvents());
+        $repository->push(records: Order::place(orderId: Uuid::uuid4()->toString())->pullEvents());
 
         /** @And the transaction is committed */
         self::$connection->commit();
@@ -801,8 +780,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
                     event: new OrderPlaced(),
-                    aggregateType: 'Order',
-                    eventTypeName: 'OrderPlaced'
+                    aggregateType: 'Order'
                 )
             ])
         );
@@ -835,8 +813,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
                     event: new OrderPlaced(),
-                    aggregateType: 'Order',
-                    eventTypeName: 'OrderPlaced'
+                    aggregateType: 'Order'
                 )
             ])
         );
@@ -884,7 +861,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
                 EventRecordFactory::create(
                     event: new OrderPlaced(),
                     aggregateType: 'Order',
-                    eventTypeName: 'OrderPlaced',
                     id: Uuid::fromString('550e8400-e29b-41d4-a716-446655440000'),
                     occurredAt: Instant::fromString(value: '2021-01-01T00:00:00+00:00'),
                     aggregateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
@@ -939,7 +915,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
                 EventRecordFactory::create(
                     event: new OrderPlaced(),
                     aggregateType: 'Order',
-                    eventTypeName: 'OrderPlaced',
                     aggregateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
                 )
             ])
@@ -972,8 +947,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
                     event: new OrderPlaced(),
-                    aggregateType: 'Order',
-                    eventTypeName: 'OrderPlaced'
+                    aggregateType: 'Order'
                 )
             ])
         );
@@ -1010,8 +984,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
                     event: new OrderPlaced(),
-                    aggregateType: 'Order',
-                    eventTypeName: 'OrderPlaced'
+                    aggregateType: 'Order'
                 )
             ])
         );
@@ -1056,7 +1029,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
@@ -1070,7 +1042,6 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
@@ -1093,8 +1064,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -1125,13 +1095,11 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateVersion: AggregateVersion::of(value: 1)
             ),
             EventRecordFactory::create(
                 event: new RefundIssued(),
                 aggregateType: 'Refund',
-                eventTypeName: 'RefundIssued',
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
@@ -1165,8 +1133,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -1193,8 +1160,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $records = EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]);
 

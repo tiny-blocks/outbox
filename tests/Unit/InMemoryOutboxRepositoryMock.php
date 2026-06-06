@@ -94,11 +94,11 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
                 );
             }
 
-            $eventId = (string)$integrationEventRecord->id;
+            $eventId = $integrationEventRecord->id->toString();
 
             if (isset($this->records[$eventId])) {
                 throw DuplicateOutboxEvent::forRecord(
-                    eventId: $integrationEventRecord->id,
+                    eventId: $eventId,
                     previous: new UniqueConstraintViolationException(
                         new DriverExceptionStub('Duplicate entry for key PRIMARY'),
                         null

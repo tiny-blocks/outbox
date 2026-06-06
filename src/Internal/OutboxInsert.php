@@ -26,7 +26,7 @@ final readonly class OutboxInsert
         SQL;
 
         $columns = $tableLayout->columns;
-        $idValue = $columns->id->convert(identityValue: $record->id);
+        $idValue = $columns->id->convert(identityValue: $record->id->toString());
         $aggregateIdValue = $columns->aggregateId->convert(identityValue: $record->aggregateId->identityValue());
 
         return new OutboxInsert(

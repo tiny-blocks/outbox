@@ -111,8 +111,10 @@ $repository = new DoctrineOutboxRepository(
 );
 ```
 
-`PayloadSerializerReflection` serializes any integration event whose public properties are scalars or
-`JsonSerializable`. Register specific serializers before it for integration events that need custom shaping (see
+`PayloadSerializerReflection` serializes any integration event through
+[`tiny-blocks/mapper`](https://github.com/tiny-blocks/mapper), resolving scalars, nested value objects, backed and
+pure enums, and date-times, and unwrapping single-property wrappers to their inner value. Register specific
+serializers before it for integration events that need custom shaping (see
 [Writing a custom payload serializer](#writing-a-custom-payload-serializer)).
 
 | Parameter     | Type                          | Required | Description                                                                                                                                |
@@ -357,9 +359,10 @@ violations with SQLite fall under `DuplicateOutboxEvent`.
 
 ### Writing a custom payload serializer
 
-`PayloadSerializerReflection` covers integration events whose public properties are scalars or `JsonSerializable`.
-Implement `PayloadSerializer` explicitly for integration events that contain value objects or domain types that need
-custom JSON shaping.
+`PayloadSerializerReflection` covers integration events that `tiny-blocks/mapper` maps by reflection: scalars,
+nested value objects, backed and pure enums, and date-times, with single-property wrappers unwrapped to their inner
+value. Implement `PayloadSerializer` explicitly for integration events that need a payload shape the mapper does not
+produce by default.
 
 Both `supports()` and `serialize()` receive the full `IntegrationEventRecord`, giving access to `$record->event`
 (the `IntegrationEvent`), `$record->aggregateType`, `$record->aggregateId`, `$record->aggregateVersion`, and all
@@ -463,10 +466,11 @@ migrate events from older revisions to the current schema on the read side.
 
 ### 01. Why don't I need a custom serializer for each integration event?
 
-`PayloadSerializerReflection` uses PHP's `get_object_vars()` to serialize any integration event whose public
-properties are scalars or `JsonSerializable`. It always returns `true` from `supports()`, making it a universal
-catch-all when registered last in `PayloadSerializers::createFrom()`. Only integration events with value objects or
-domain types that are not directly JSON-encodable require an explicit serializer.
+`PayloadSerializerReflection` delegates to [`tiny-blocks/mapper`](https://github.com/tiny-blocks/mapper), which
+serializes any integration event by reflection: scalars, nested value objects, backed and pure enums, and
+date-times, with single-property wrappers unwrapped to their inner value. It always returns `true` from
+`supports()`, making it a universal catch-all when registered last in `PayloadSerializers::createFrom()`. Only
+integration events that need a payload shape different from the mapper's default require an explicit serializer.
 
 ### 02. What is the difference between revision and aggregate_version?
 
