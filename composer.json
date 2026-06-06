@@ -32,13 +32,14 @@
         "php": "^8.5",
         "doctrine/dbal": "^4.4",
         "ramsey/uuid": "^4.9",
-        "tiny-blocks/building-blocks": "^4.0",
-        "tiny-blocks/collection": "^2.3"
+        "tiny-blocks/building-blocks": "^5.0",
+        "tiny-blocks/collection": "^2.4",
+        "tiny-blocks/mapper": "^3.0"
     },
     "require-dev": {
         "ergebnis/composer-normalize": "^2.52",
         "infection/infection": "^0.33",
-        "phpstan/phpstan": "^2.1",
+        "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^13.1",
         "squizlabs/php_codesniffer": "^4.0",
         "tiny-blocks/docker-container": "^2.5",

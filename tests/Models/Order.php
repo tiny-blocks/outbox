@@ -18,7 +18,7 @@ final class Order implements EventualAggregateRoot
     public static function place(string $orderId): Order
     {
         $order = new Order(id: new OrderId(value: $orderId));
-        $order->push(event: new OrderPlaced());
+        $order->pushEvent(event: new OrderPlaced());
         return $order;
     }
 }

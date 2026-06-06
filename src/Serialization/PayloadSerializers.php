@@ -7,6 +7,15 @@ namespace TinyBlocks\Outbox\Serialization;
 use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
 use TinyBlocks\Collection\Collection;
 
+/**
+ * Ordered collection of {@see PayloadSerializer} instances.
+ *
+ * <p>Lookup follows first-match-wins semantics: {@see PayloadSerializers::findFor} returns the first
+ * serializer whose {@see PayloadSerializer::supports} returns <code>true</code> for the given record,
+ * or <code>null</code> when no serializer handles it.</p>
+ *
+ * @extends Collection<PayloadSerializer>
+ */
 final class PayloadSerializers extends Collection
 {
     /**

@@ -76,7 +76,7 @@ final readonly class DoctrineOutboxRepository implements OutboxRepository
                 }
 
                 throw DuplicateOutboxEvent::forRecord(
-                    eventId: $integrationEventRecord->id,
+                    eventId: $integrationEventRecord->id->toString(),
                     previous: $exception
                 );
             }

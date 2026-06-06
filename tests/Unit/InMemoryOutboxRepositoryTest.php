@@ -38,8 +38,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
@@ -66,13 +65,11 @@ final class InMemoryOutboxRepositoryTest extends TestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateVersion: AggregateVersion::of(value: 1)
             ),
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateVersion: AggregateVersion::of(value: 2)
             )
         ]));
@@ -99,8 +96,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
     }
@@ -123,8 +119,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
     }
@@ -147,8 +142,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
     }
@@ -172,7 +166,6 @@ final class InMemoryOutboxRepositoryTest extends TestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 id: $eventId
             )
         ]));
@@ -185,7 +178,6 @@ final class InMemoryOutboxRepositoryTest extends TestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 id: $eventId,
                 aggregateVersion: AggregateVersion::of(value: 2)
             )
@@ -211,7 +203,6 @@ final class InMemoryOutboxRepositoryTest extends TestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
@@ -225,7 +216,6 @@ final class InMemoryOutboxRepositoryTest extends TestCase
             EventRecordFactory::create(
                 event: new OrderPlaced(),
                 aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced',
                 aggregateId: $aggregateId,
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
@@ -265,7 +255,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->beginTransaction();
 
         /** @When the aggregate's recorded events are pushed */
-        $outbox->push(records: Order::place(orderId: Uuid::uuid4()->toString())->recordedEvents());
+        $outbox->push(records: Order::place(orderId: Uuid::uuid4()->toString())->pullEvents());
 
         /** @And the transaction is committed */
         $outbox->commit();
@@ -289,8 +279,7 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                eventTypeName: 'OrderPlaced'
+                aggregateType: 'Order'
             )
         ]));
 
