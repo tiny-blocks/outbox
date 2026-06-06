@@ -85,6 +85,12 @@ jobs:
     needs: [resolve-php-version, auto-review]
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      DATABASE_HOST: outbox-test-db
+      DATABASE_NAME: outbox_test
+      DATABASE_USER: outbox
+      DATABASE_PASSWORD: outbox
+      TEST_DB_HOST_PORT: '33306'
     steps:
       - name: Checkout
         uses: actions/checkout@v6
