@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace TinyBlocks\Outbox;
 
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
-use TinyBlocks\BuildingBlocks\Event\IntegrationEvent;
-use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslator;
 use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\InvalidPayloadJson;
 use TinyBlocks\Outbox\Exceptions\OutboxRequiresActiveTransaction;
 use TinyBlocks\Outbox\Exceptions\PayloadSerializerNotConfigured;
-use TinyBlocks\Outbox\Serialization\PayloadSerializer;
 
 /**
  * Producer-side contract: persists outbox records as part of the caller's open transaction.
@@ -28,14 +25,14 @@ interface OutboxRepository
      *
      * <p>The input carries domain events from the aggregate's recorded-events buffer.
      * The implementation filters each record through the registered
-     * {@see IntegrationEventTranslator} collection: domain events without a matching
+     * <code>IntegrationEventTranslator</code> collection: domain events without a matching
      * translator are silently skipped, because the absence of a translator is the canonical
      * declaration that the event is internal to the bounded context and must not cross its
      * boundary.</p>
      *
-     * <p>Matched domain events are translated into {@see IntegrationEvent} envelopes via
+     * <p>Matched domain events are translated into <code>IntegrationEvent</code> envelopes via
      * the Anti-Corruption Layer and only then serialized and persisted. The
-     * {@see PayloadSerializer} operates on the integration event record, never on the
+     * <code>PayloadSerializer</code> operates on the integration event record, never on the
      * domain event directly.</p>
      *
      * <p>The implementation must not open or commit a transaction. It is the caller's

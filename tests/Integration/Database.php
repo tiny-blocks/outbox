@@ -17,8 +17,8 @@ final readonly class Database
         private string $host,
         private string $port,
         private string $database,
-        private string $username,
-        private string $password
+        private string $password,
+        private string $username
     ) {
     }
 
@@ -34,8 +34,8 @@ final readonly class Database
             host: $host,
             port: $port,
             database: $database,
-            username: $username,
-            password: $password
+            password: $password,
+            username: $username
         );
     }
 
@@ -43,25 +43,23 @@ final readonly class Database
     {
         try {
             $this->connection()->executeQuery('SELECT 1');
-            return;
         } catch (Exception) {
+            new Process(['docker', 'rm', '-f', sprintf('tiny-blocks-reaper-%s', $this->host)])->run();
+            new Process(['docker', 'rm', '-f', $this->host])->run();
+
+            MySQLDockerContainer::from(image: 'mysql:8.4', name: $this->host)
+                ->pullImage()
+                ->withTimezone(timezone: 'UTC')
+                ->withUsername(user: $this->username)
+                ->withPassword(password: $this->password)
+                ->withDatabase(database: $this->database)
+                ->withPortMapping(portOnHost: (int)$this->port, portOnContainer: 3306)
+                ->withRootPassword(rootPassword: 'root')
+                ->withGrantedHosts()
+                ->withoutAutoRemove()
+                ->withReadinessTimeout(timeoutInSeconds: 60)
+                ->run();
         }
-
-        new Process(['docker', 'rm', '-f', sprintf('tiny-blocks-reaper-%s', $this->host)])->run();
-        new Process(['docker', 'rm', '-f', $this->host])->run();
-
-        MySQLDockerContainer::from(image: 'mysql:8.4', name: $this->host)
-            ->pullImage()
-            ->withTimezone(timezone: 'UTC')
-            ->withUsername(user: $this->username)
-            ->withPassword(password: $this->password)
-            ->withDatabase(database: $this->database)
-            ->withPortMapping(portOnHost: (int)$this->port, portOnContainer: 3306)
-            ->withRootPassword(rootPassword: 'root')
-            ->withGrantedHosts()
-            ->withoutAutoRemove()
-            ->withReadinessTimeout(timeoutInSeconds: 60)
-            ->run();
     }
 
     public function connection(): Connection

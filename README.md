@@ -87,8 +87,9 @@ CREATE TABLE outbox_events
 
 ### Wiring the repository
 
-`DoctrineOutboxRepository` requires a Doctrine DBAL `Connection`, an `IntegrationEventTranslators` collection, and a
-`PayloadSerializers` collection. The table layout defaults to table `outbox_events` with BINARY(16) identity columns.
+`DoctrineOutboxRepository` requires a Doctrine DBAL `Connection`, a `PayloadSerializers` collection, and an
+`IntegrationEventTranslators` collection. The table layout defaults to table `outbox_events` with BINARY(16) identity
+columns.
 
 ```php
 <?php
@@ -102,11 +103,11 @@ use TinyBlocks\Outbox\Serialization\PayloadSerializers;
 
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
-    translators: IntegrationEventTranslators::createFrom(elements: [
-        new OrderPlacedTranslator()
-    ]),
     serializers: PayloadSerializers::createFrom(elements: [
         new PayloadSerializerReflection()
+    ]),
+    translators: IntegrationEventTranslators::createFrom(elements: [
+        new OrderPlacedTranslator()
     ])
 );
 ```
@@ -120,8 +121,8 @@ serializers before it for integration events that need custom shaping (see
 | Parameter     | Type                          | Required | Description                                                                                                                                |
 |---------------|-------------------------------|:--------:|--------------------------------------------------------------------------------------------------------------------------------------------|
 | `connection`  | `Connection`                  |   Yes    | Doctrine DBAL connection used for all INSERT statements.                                                                                   |
-| `translators` | `IntegrationEventTranslators` |   Yes    | Ordered collection of translators mapping domain events to integration events. Records without a matching translator are silently skipped. |
 | `serializers` | `PayloadSerializers`          |   Yes    | Ordered collection of payload serializers operating on integration event records, first match wins.                                        |
+| `translators` | `IntegrationEventTranslators` |   Yes    | Ordered collection of translators mapping domain events to integration events. Records without a matching translator are silently skipped. |
 | `tableLayout` | `TableLayout`                 |    No    | Table and column configuration, defaults to `outbox_events` with BINARY(16) ids.                                                           |
 
 ### Producing events from an aggregate
@@ -251,12 +252,12 @@ use TinyBlocks\Outbox\Serialization\PayloadSerializers;
 
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
+    serializers: PayloadSerializers::createFrom(elements: [
+        new PayloadSerializerReflection()
+    ]),
     translators: IntegrationEventTranslators::createFrom(elements: [
         new OrderPlacedTranslator(),
         new PaymentReceivedTranslator()
-    ]),
-    serializers: PayloadSerializers::createFrom(elements: [
-        new PayloadSerializerReflection()
     ])
 );
 ```
@@ -280,11 +281,11 @@ use TinyBlocks\Outbox\Serialization\PayloadSerializers;
 # InventoryReserved has no translator registered: it is purely internal and will never be persisted.
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
-    translators: IntegrationEventTranslators::createFrom(elements: [
-        new OrderPlacedTranslator()
-    ]),
     serializers: PayloadSerializers::createFrom(elements: [
         new PayloadSerializerReflection()
+    ]),
+    translators: IntegrationEventTranslators::createFrom(elements: [
+        new OrderPlacedTranslator()
     ])
 );
 ```
@@ -320,8 +321,8 @@ $tableLayout = TableLayout::builder()
 
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
-    translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
     serializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()]),
+    translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
     tableLayout: $tableLayout
 );
 ```
@@ -411,13 +412,13 @@ final readonly class OrderEventSerializer implements PayloadSerializer
 # PayloadSerializerReflection always returns true from supports(), so it must come last.
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
-    translators: IntegrationEventTranslators::createFrom(elements: [
-        new OrderPlacedTranslator(),
-        new OrderCanceledTranslator()
-    ]),
     serializers: PayloadSerializers::createFrom(elements: [
         new OrderEventSerializer(),
         new PayloadSerializerReflection()
+    ]),
+    translators: IntegrationEventTranslators::createFrom(elements: [
+        new OrderPlacedTranslator(),
+        new OrderCanceledTranslator()
     ])
 );
 ```

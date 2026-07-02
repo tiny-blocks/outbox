@@ -28,9 +28,9 @@ final readonly class EventRecordFactory
     ): EventRecord {
         return EventRecord::from(
             event: $event,
-            aggregateId: new OrderId(value: $aggregateId ?? Uuid::generateV7()->toString()),
+            aggregateId: new OrderId(value: ($aggregateId ?? Uuid::generateV7()->toString())),
             aggregateType: $aggregateType,
-            aggregateVersion: $aggregateVersion ?? AggregateVersion::first(),
+            aggregateVersion: ($aggregateVersion ?? AggregateVersion::first()),
             id: is_null($id) ? null : Uuid::from(value: $id->toString()),
             occurredAt: is_null($occurredAt) ? null : Utc::fromIso8601(value: $occurredAt->toIso8601())
         );

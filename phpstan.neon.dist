@@ -6,7 +6,7 @@ parameters:
     ignoreErrors:
         # OutboxInsert::$parameters is an untyped iterable on an Internal collaborator; Doctrine expects array<int|string, mixed>.
         - identifier: argument.type
-          path: src/DoctrineOutboxRepository.php
+          path: src/Internal/OutboxWriter.php
 
         # aggregateId is intentionally typed mixed at the public exception boundary; sprintf at level max flags the mixed argument.
         - identifier: argument.type

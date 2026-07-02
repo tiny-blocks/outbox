@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace TinyBlocks\Outbox\Schema;
 
 use TinyBlocks\Outbox\Internal\BinaryIdentityColumn;
-use TinyBlocks\Outbox\Internal\IdentityColumn;
 use TinyBlocks\Outbox\Internal\StringIdentityColumn;
 
 enum IdentityColumnType: string
