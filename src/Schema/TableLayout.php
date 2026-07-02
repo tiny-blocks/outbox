@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace TinyBlocks\Outbox\Schema;
 
-use TinyBlocks\Outbox\Internal\TableLayoutBuilder;
-
 final readonly class TableLayout
 {
     private function __construct(
@@ -13,26 +11,6 @@ final readonly class TableLayout
         public string $tableName,
         public UniqueConstraint $uniqueConstraint
     ) {
-    }
-
-    /**
-     * Creates a TableLayoutBuilder used to customize the outbox table layout.
-     *
-     * @return TableLayoutBuilder A new builder seeded with the default table layout.
-     */
-    public static function builder(): TableLayoutBuilder
-    {
-        return TableLayoutBuilder::create();
-    }
-
-    /**
-     * Creates a TableLayout using the default table name, columns, and unique constraint.
-     *
-     * @return TableLayout The default table layout.
-     */
-    public static function default(): TableLayout
-    {
-        return TableLayoutBuilder::create()->build();
     }
 
     /**
@@ -53,5 +31,25 @@ final readonly class TableLayout
             tableName: $tableName,
             uniqueConstraint: $uniqueConstraint
         );
+    }
+
+    /**
+     * Creates a TableLayoutBuilder used to customize the outbox table layout.
+     *
+     * @return TableLayoutBuilder A new builder seeded with the default table layout.
+     */
+    public static function builder(): TableLayoutBuilder
+    {
+        return TableLayoutBuilder::create();
+    }
+
+    /**
+     * Creates a TableLayout using the default table name, columns, and unique constraint.
+     *
+     * @return TableLayout The default table layout.
+     */
+    public static function default(): TableLayout
+    {
+        return TableLayoutBuilder::create()->build();
     }
 }

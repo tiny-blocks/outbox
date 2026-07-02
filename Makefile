@@ -6,7 +6,9 @@ ifeq ($(ARCH),arm64)
     PLATFORM := --platform=linux/amd64
 endif
 
-DOCKER_RUN = docker run ${PLATFORM} --rm -it --net=host \
+TTY := $(shell [ -t 0 ] && echo -it)
+
+DOCKER_RUN = docker run ${PLATFORM} --rm ${TTY} --net=host \
 	-e DATABASE_HOST=outbox-test-db \
 	-e TEST_DB_HOST_PORT=33306 \
 	-e DATABASE_NAME=outbox_test \

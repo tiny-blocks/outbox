@@ -7,8 +7,9 @@ paths:
 
 # Code style
 
-Semantic rules for all PHP files in libraries. Formatting rules covered by `PSR-12` are enforced
-by `phpcs.xml`. Four formatting rules outside `PSR-12` (single-line signatures within 120
+Semantic rules for all PHP files in libraries. Formatting and structural rules are enforced by
+`phpcs.xml` (the `PSR12` ruleset plus curated Squiz, Generic, PSR2, and `SlevomatCodingStandard`
+sniffs). Four formatting rules the ruleset does not cover (single-line signatures within 120
 characters, no vertical alignment in parameter lists, vertical alignment of `=>` in multi-line
 match arms and array literals, no trailing comma in multi-line lists) are documented at the end
 of this file under "Formatting overrides". Complexity rules live in `php-library-modeling.md`.

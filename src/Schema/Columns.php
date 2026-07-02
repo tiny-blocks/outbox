@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace TinyBlocks\Outbox\Schema;
 
-use TinyBlocks\Outbox\Internal\ColumnsBuilder;
-use TinyBlocks\Outbox\Internal\IdentityColumn;
-
 final readonly class Columns
 {
     private function __construct(
@@ -20,26 +17,6 @@ final readonly class Columns
         public string $aggregateType,
         public string $aggregateVersion
     ) {
-    }
-
-    /**
-     * Creates a ColumnsBuilder used to customize the outbox column names.
-     *
-     * @return ColumnsBuilder A new builder seeded with the default column names.
-     */
-    public static function builder(): ColumnsBuilder
-    {
-        return ColumnsBuilder::create();
-    }
-
-    /**
-     * Creates a Columns instance using the default outbox column names.
-     *
-     * @return Columns The default column configuration.
-     */
-    public static function default(): Columns
-    {
-        return ColumnsBuilder::create()->build();
     }
 
     /**
@@ -78,5 +55,25 @@ final readonly class Columns
             aggregateType: $aggregateType,
             aggregateVersion: $aggregateVersion
         );
+    }
+
+    /**
+     * Creates a ColumnsBuilder used to customize the outbox column names.
+     *
+     * @return ColumnsBuilder A new builder seeded with the default column names.
+     */
+    public static function builder(): ColumnsBuilder
+    {
+        return ColumnsBuilder::create();
+    }
+
+    /**
+     * Creates a Columns instance using the default outbox column names.
+     *
+     * @return Columns The default column configuration.
+     */
+    public static function default(): Columns
+    {
+        return ColumnsBuilder::create()->build();
     }
 }

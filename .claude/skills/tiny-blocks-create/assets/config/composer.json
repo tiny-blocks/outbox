@@ -27,6 +27,7 @@
         "infection/infection": "^0.33",
         "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^13.1",
+        "slevomat/coding-standard": "^8.30",
         "squizlabs/php_codesniffer": "^4.0"
     },
     "minimum-stability": "stable",
@@ -43,6 +44,7 @@
     },
     "config": {
         "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true,
             "ergebnis/composer-normalize": true,
             "infection/extension-installer": true
         },

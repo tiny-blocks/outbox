@@ -28,9 +28,49 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
     ) {
     }
 
-    public function beginTransaction(): void
+    public function push(EventRecords $records): void
     {
-        $this->transactionActive = true;
+        if (!$this->transactionActive) {
+            throw OutboxRequiresActiveTransaction::asMissing();
+        }
+
+        $records->each(actions: function (EventRecord $eventRecord): void {
+            $this->record(eventRecord: $eventRecord);
+        });
+    }
+
+    public function store(IntegrationEventRecord $record): void
+    {
+        $aggregateKey = sprintf(
+            '%s|%s|%d',
+            $record->aggregateType,
+            $record->aggregateId->identityValue(),
+            $record->aggregateVersion->value
+        );
+
+        if (isset($this->aggregateVersions[$aggregateKey])) {
+            throw DuplicateAggregateVersion::forRecord(
+                previous: null,
+                aggregateId: $record->aggregateId->identityValue(),
+                aggregateType: $record->aggregateType,
+                aggregateVersion: $record->aggregateVersion->value
+            );
+        }
+
+        $eventId = $record->id->toString();
+
+        if (isset($this->records[$eventId])) {
+            throw DuplicateOutboxEvent::forRecord(
+                eventId: $eventId,
+                previous: new UniqueConstraintViolationException(
+                    new DriverExceptionStub('Duplicate entry for key PRIMARY'),
+                    null
+                )
+            );
+        }
+
+        $this->aggregateVersions[$aggregateKey] = true;
+        $this->records[$eventId] = $record;
     }
 
     public function commit(): void
@@ -38,9 +78,30 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
         $this->transactionActive = false;
     }
 
-    public function persistedRecords(): array
+    public function record(EventRecord $eventRecord): void
     {
-        return $this->records;
+        $translator = $this->translators->findFor(record: $eventRecord);
+
+        if (is_null($translator)) {
+            return;
+        }
+
+        $integrationEventRecord = IntegrationEventRecord::from(
+            eventRecord: $eventRecord,
+            integrationEvent: $translator->translate(record: $eventRecord)
+        );
+
+        $payloadSerializer = $this->payloadSerializers->findFor(record: $integrationEventRecord);
+
+        if (is_null($payloadSerializer)) {
+            throw PayloadSerializerNotConfigured::forEventClass(
+                eventClass: $integrationEventRecord->event::class
+            );
+        }
+
+        $payloadSerializer->serialize(record: $integrationEventRecord);
+
+        $this->store(record: $integrationEventRecord);
     }
 
     public function rollback(): void
@@ -50,64 +111,13 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
         $this->aggregateVersions = [];
     }
 
-    public function push(EventRecords $records): void
+    public function beginTransaction(): void
     {
-        if (!$this->transactionActive) {
-            throw OutboxRequiresActiveTransaction::asMissing();
-        }
+        $this->transactionActive = true;
+    }
 
-        $records->each(actions: function (EventRecord $eventRecord): void {
-            $translator = $this->translators->findFor(record: $eventRecord);
-
-            if (is_null($translator)) {
-                return;
-            }
-
-            $integrationEventRecord = IntegrationEventRecord::from(
-                eventRecord: $eventRecord,
-                integrationEvent: $translator->translate(record: $eventRecord)
-            );
-
-            $payloadSerializer = $this->payloadSerializers->findFor(record: $integrationEventRecord);
-
-            if (is_null($payloadSerializer)) {
-                throw PayloadSerializerNotConfigured::forEventClass(
-                    eventClass: $integrationEventRecord->event::class
-                );
-            }
-
-            $payloadSerializer->serialize(record: $integrationEventRecord);
-
-            $aggregateKey = sprintf(
-                '%s|%s|%d',
-                $integrationEventRecord->aggregateType,
-                $integrationEventRecord->aggregateId->identityValue(),
-                $integrationEventRecord->aggregateVersion->value
-            );
-
-            if (isset($this->aggregateVersions[$aggregateKey])) {
-                throw DuplicateAggregateVersion::forRecord(
-                    previous: null,
-                    aggregateId: $integrationEventRecord->aggregateId->identityValue(),
-                    aggregateType: $integrationEventRecord->aggregateType,
-                    aggregateVersion: $integrationEventRecord->aggregateVersion->value
-                );
-            }
-
-            $eventId = $integrationEventRecord->id->toString();
-
-            if (isset($this->records[$eventId])) {
-                throw DuplicateOutboxEvent::forRecord(
-                    eventId: $eventId,
-                    previous: new UniqueConstraintViolationException(
-                        new DriverExceptionStub('Duplicate entry for key PRIMARY'),
-                        null
-                    )
-                );
-            }
-
-            $this->aggregateVersions[$aggregateKey] = true;
-            $this->records[$eventId] = $integrationEventRecord;
-        });
+    public function persistedRecords(): array
+    {
+        return $this->records;
     }
 }

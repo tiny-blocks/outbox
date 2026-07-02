@@ -38,19 +38,19 @@ final readonly class OutboxTableFactory
             sprintf(
                 $template,
                 $tableLayout->tableName,
-                $tableLayout->columns->id->name,
+                $tableLayout->columns->id->name(),
                 $tableLayout->columns->payload,
                 $tableLayout->columns->revision,
                 $tableLayout->columns->eventType,
                 $tableLayout->columns->occurredAt,
-                $tableLayout->columns->aggregateId->name,
+                $tableLayout->columns->aggregateId->name(),
                 $tableLayout->columns->aggregateType,
                 $tableLayout->columns->aggregateVersion,
                 $tableLayout->columns->createdAt,
-                $tableLayout->columns->id->name,
+                $tableLayout->columns->id->name(),
                 $tableLayout->uniqueConstraint->name,
                 $tableLayout->columns->aggregateType,
-                $tableLayout->columns->aggregateId->name,
+                $tableLayout->columns->aggregateId->name(),
                 $tableLayout->columns->aggregateVersion
             )
         );
@@ -81,19 +81,19 @@ final readonly class OutboxTableFactory
             sprintf(
                 $template,
                 $tableLayout->tableName,
-                $tableLayout->columns->id->name,
+                $tableLayout->columns->id->name(),
                 $tableLayout->columns->payload,
                 $tableLayout->columns->revision,
                 $tableLayout->columns->eventType,
                 $tableLayout->columns->occurredAt,
-                $tableLayout->columns->aggregateId->name,
+                $tableLayout->columns->aggregateId->name(),
                 $tableLayout->columns->aggregateType,
                 $tableLayout->columns->aggregateVersion,
                 $tableLayout->columns->createdAt,
-                $tableLayout->columns->id->name,
+                $tableLayout->columns->id->name(),
                 $tableLayout->uniqueConstraint->name,
                 $tableLayout->columns->aggregateType,
-                $tableLayout->columns->aggregateId->name,
+                $tableLayout->columns->aggregateId->name(),
                 $tableLayout->columns->aggregateVersion
             )
         );

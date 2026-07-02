@@ -33,8 +33,8 @@ final readonly class OutboxInsert
             sql: sprintf(
                 $template,
                 $tableLayout->tableName,
-                $columns->id->name,
-                $columns->aggregateId->name,
+                $columns->id->name(),
+                $columns->aggregateId->name(),
                 $columns->aggregateType,
                 $columns->eventType,
                 $columns->revision,

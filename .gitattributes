@@ -2,6 +2,9 @@
 
 *.php text diff=php
 
+# Mantém os scripts de tooling do Claude fora da estatística de linguagem do GitHub
+/.claude/**/*.py linguist-vendored
+
 # Dev-only, excluded from the Packagist tarball
 /.github             export-ignore
 /tests               export-ignore
