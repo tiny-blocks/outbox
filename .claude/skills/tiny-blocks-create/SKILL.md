@@ -8,8 +8,9 @@ description: Scaffold a new PHP library for the tiny-blocks ecosystem, or restor
 This skill is the single source of truth for the boilerplate every tiny-blocks PHP library
 shares: the config files, the CI workflow, and the repository templates. The canonical bodies
 live in `assets/` as drop-in files. Copy them and substitute the placeholders rather than
-regenerating them from memory. The assets already encode the ecosystem's decisions (PSR-12 only,
-`level: max`, MSI 100, Docker-wrapped Makefile, the `.dist` naming split, the export-ignore set).
+regenerating them from memory. The assets already encode the ecosystem's decisions (the `PSR12`
+plus `SlevomatCodingStandard` ruleset, `level: max`, MSI 100, Docker-wrapped Makefile, the
+`.dist` naming split, the export-ignore set).
 
 The semantic conventions (how to name classes, how to structure `src/`, how to write tests) are
 **not** in this skill. They live in `.claude/rules/`. This skill produces the skeleton. The rules

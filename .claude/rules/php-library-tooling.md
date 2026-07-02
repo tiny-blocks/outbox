@@ -36,18 +36,26 @@ revise before outputting.
 2. `composer.json` exposes exactly five scripts: `configure`, `configure-and-update`, `review`,
    `test-file`, `tests`. No other public scripts.
 3. `composer.json` fixed fields use the canonical values from the skill asset (`license`, `type`,
-   `minimum-stability`, `prefer-stable`, `authors`, `config`, `require.php`). The five universal
+   `minimum-stability`, `prefer-stable`, `authors`, `config`, `require.php`). The six universal
    dev dependencies (`ergebnis/composer-normalize`, `infection/infection`, `phpstan/phpstan`,
-   `phpunit/phpunit`, `squizlabs/php_codesniffer`) are present. `require-dev` may add libraries
-   the tests need on top of those five. The asset's caret ranges are the canonical floor, and
-   the repo `composer.json` matches the asset. To bump, update the asset first, then the repo.
+   `phpunit/phpunit`, `slevomat/coding-standard`, `squizlabs/php_codesniffer`) are present, and
+   `config.allow-plugins` enables `dealerdirect/phpcodesniffer-composer-installer` so the Slevomat
+   sniffs register with phpcs. `require-dev` may add libraries the tests need on top of those six.
+   The asset's caret ranges are the canonical floor, and the repo `composer.json` matches the
+   asset. To bump, update the asset first, then the repo.
 4. `composer.json` `description` is a single short sentence. Multi-sentence prose belongs in the
    README Overview, not in Composer metadata.
 5. `composer.json` includes a `keywords` array that contains `"tiny-blocks"`. Its position in
    the array is not constrained. The remaining entries are topic tokens derived from the
    library's purpose (`psr-7`, `http-client`, `event-sourcing`, etc.).
-6. `phpcs.xml` references only the `PSR12` ruleset. No additional sniffs. Formatting rules outside
-   PSR-12 live in `php-library-code-style.md` under "Formatting overrides".
+6. `phpcs.xml` references the `PSR12` ruleset plus curated Squiz, Generic, PSR2, and
+   `SlevomatCodingStandard` sniffs that mechanically enforce the library's structural and
+   type-hint conventions (class member order, alphabetically sorted and used-only imports, strict
+   types, parameter, property, and return type hints, and complexity ceilings). The
+   `SlevomatCodingStandard.Classes.ClassStructure` groups collapse all methods into one group, so
+   the `php-ordering-conformance` hook owns the name-length ordering within them. The four
+   formatting rules the ruleset does not cover live in `php-library-code-style.md` under
+   "Formatting overrides".
 7. `phpunit.xml` sets all five `failOn*` flags to `true` (`failOnDeprecation`, `failOnNotice`,
    `failOnPhpunitDeprecation`, `failOnRisky`, `failOnWarning`).
 8. `phpunit.xml` sets `executionOrder="random"` and `beStrictAboutOutputDuringTests="true"`.
@@ -84,9 +92,10 @@ revise before outputting.
 The committed config files split into two naming conventions on purpose. The split is documented
 here so it reads as intentional, not accidental.
 
-- **Committed live, no `.dist`:** `phpcs.xml` and `phpunit.xml`. The ruleset (`PSR12` only) and
-  the test configuration are stable across the whole ecosystem and identical in every library.
-  There is no per-clone local-override story, so the live file is committed directly.
+- **Committed live, no `.dist`:** `phpcs.xml` and `phpunit.xml`. The ruleset (`PSR12` plus the
+  curated Squiz, Generic, PSR2, and `SlevomatCodingStandard` sniffs) and the test configuration
+  are stable across the whole ecosystem and identical in every library. There is no per-clone
+  local-override story, so the live file is committed directly.
 - **Committed as `.dist`:** `phpstan.neon.dist` and `infection.json.dist`. These are the two
   tools a contributor may legitimately want to tune locally (a temporary `ignoreErrors` entry, a
   narrower mutator set while iterating). The `.dist` baseline is committed. A contributor drops a
