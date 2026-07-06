@@ -5,18 +5,12 @@ declare(strict_types=1);
 namespace TinyBlocks\Outbox\Serialization;
 
 use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
-use TinyBlocks\Mapper\Mapper;
-use TinyBlocks\Mapper\Serializer;
 
+/**
+ * Reflection-based payload serializer that supports every integration event.
+ */
 final readonly class PayloadSerializerReflection implements PayloadSerializer
 {
-    private Serializer $serializer;
-
-    public function __construct()
-    {
-        $this->serializer = Mapper::create();
-    }
-
     public function supports(IntegrationEventRecord $record): bool
     {
         return true;
@@ -24,6 +18,6 @@ final readonly class PayloadSerializerReflection implements PayloadSerializer
 
     public function serialize(IntegrationEventRecord $record): SerializedPayload
     {
-        return SerializedPayload::fromArray(payload: $this->serializer->toArray(source: $record->event));
+        return SerializedPayload::fromEvent(event: $record->event);
     }
 }

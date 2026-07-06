@@ -39,7 +39,7 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
         });
     }
 
-    public function store(IntegrationEventRecord $record): void
+    public function store(EventRecord|IntegrationEventRecord $record): void
     {
         $aggregateKey = sprintf(
             '%s|%s|%d',
@@ -83,6 +83,8 @@ final class InMemoryOutboxRepositoryMock implements OutboxRepository
         $translator = $this->translators->findFor(record: $eventRecord);
 
         if (is_null($translator)) {
+            $this->store(record: $eventRecord);
+
             return;
         }
 

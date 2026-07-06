@@ -23,17 +23,20 @@ interface OutboxRepository
     /**
      * Persists the given records as part of the caller's open transaction.
      *
-     * <p>The input carries domain events from the aggregate's recorded-events buffer.
-     * The implementation filters each record through the registered
-     * <code>IntegrationEventTranslator</code> collection: domain events without a matching
-     * translator are silently skipped, because the absence of a translator is the canonical
-     * declaration that the event is internal to the bounded context and must not cross its
-     * boundary.</p>
+     * <p>The input carries domain events from the aggregate's recorded-events buffer. Every
+     * record produces exactly one outbox row, so the unique constraint over aggregate type,
+     * aggregate id, and aggregate version can detect lost updates on every state transition.</p>
      *
-     * <p>Matched domain events are translated into <code>IntegrationEvent</code> envelopes via
-     * the Anti-Corruption Layer and only then serialized and persisted. The
-     * <code>PayloadSerializer</code> operates on the integration event record, never on the
-     * domain event directly.</p>
+     * <p>Records with a matching <code>IntegrationEventTranslator</code> are translated into
+     * <code>IntegrationEvent</code> envelopes via the Anti-Corruption Layer and only then
+     * serialized and persisted. The persisted event type, revision, and payload come from the
+     * integration event, and the <code>PayloadSerializer</code> operates on the integration
+     * event record, never on the domain event directly.</p>
+     *
+     * <p>Records without a matching translator are persisted carrying the domain event itself.
+     * The persisted event type and revision come from the domain event, and the payload is
+     * produced by reflection over the domain event's public properties. No
+     * <code>PayloadSerializer</code> is consulted on this path.</p>
      *
      * <p>The implementation must not open or commit a transaction. It is the caller's
      * responsibility to ensure this call happens inside the same unit of work as the

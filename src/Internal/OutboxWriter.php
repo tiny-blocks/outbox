@@ -14,6 +14,7 @@ use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
 use TinyBlocks\Outbox\Exceptions\PayloadSerializerNotConfigured;
 use TinyBlocks\Outbox\Schema\TableLayout;
 use TinyBlocks\Outbox\Serialization\PayloadSerializers;
+use TinyBlocks\Outbox\Serialization\SerializedPayload;
 
 final readonly class OutboxWriter
 {
@@ -29,41 +30,49 @@ final readonly class OutboxWriter
     {
         $translator = $this->translators->findFor(record: $eventRecord);
 
-        if (is_null($translator)) {
-            return;
-        }
-
-        $record = IntegrationEventRecord::from(
-            eventRecord: $eventRecord,
-            integrationEvent: $translator->translate(record: $eventRecord)
-        );
-
-        $payloadSerializer = $this->serializers->findFor(record: $record);
-
-        if (is_null($payloadSerializer)) {
-            throw PayloadSerializerNotConfigured::forEventClass(eventClass: $record->event::class);
-        }
-
-        $insert = OutboxInsert::from(
-            record: $record,
-            payload: $payloadSerializer->serialize(record: $record),
-            tableLayout: $this->tableLayout
-        );
-
         try {
+            if (is_null($translator)) {
+                $insert = OutboxInsert::from(
+                    record: $eventRecord,
+                    payload: SerializedPayload::fromEvent(event: $eventRecord->event),
+                    tableLayout: $this->tableLayout
+                );
+
+                $this->connection->executeStatement(sql: $insert->sql, params: $insert->parameters);
+
+                return;
+            }
+
+            $record = IntegrationEventRecord::from(
+                eventRecord: $eventRecord,
+                integrationEvent: $translator->translate(record: $eventRecord)
+            );
+
+            $payloadSerializer = $this->serializers->findFor(record: $record);
+
+            if (is_null($payloadSerializer)) {
+                throw PayloadSerializerNotConfigured::forEventClass(eventClass: $record->event::class);
+            }
+
+            $insert = OutboxInsert::from(
+                record: $record,
+                payload: $payloadSerializer->serialize(record: $record),
+                tableLayout: $this->tableLayout
+            );
+
             $this->connection->executeStatement(sql: $insert->sql, params: $insert->parameters);
         } catch (UniqueConstraintViolationException $exception) {
             if ($this->tableLayout->uniqueConstraint->isViolatedBy(exception: $exception)) {
                 throw DuplicateAggregateVersion::forRecord(
                     previous: $exception,
-                    aggregateId: $record->aggregateId->identityValue(),
-                    aggregateType: $record->aggregateType,
-                    aggregateVersion: $record->aggregateVersion->value
+                    aggregateId: $eventRecord->aggregateId->identityValue(),
+                    aggregateType: $eventRecord->aggregateType,
+                    aggregateVersion: $eventRecord->aggregateVersion->value
                 );
             }
 
             throw DuplicateOutboxEvent::forRecord(
-                eventId: $record->id->toString(),
+                eventId: $eventRecord->id->toString(),
                 previous: $exception
             );
         }
