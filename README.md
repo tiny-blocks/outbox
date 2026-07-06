@@ -23,10 +23,13 @@ an integration event must happen atomically. Doing both independently risks a cr
 other lost. The outbox pattern records both in the same database transaction, delegating event delivery to a separate
 relay process.
 
-This library is the write-side adapter. It persists integration events atomically with aggregate state via Doctrine
-DBAL. The pipeline is: `DomainEvent → IntegrationEventTranslator → IntegrationEvent → PayloadSerializer → INSERT`.
-Domain events without a registered translator are silently skipped: their absence from `IntegrationEventTranslators`
-is the canonical declaration that the event is internal to the bounded context and must not cross its boundary.
+This library is the write-side adapter. It persists every domain fact atomically with aggregate state via Doctrine
+DBAL. Domain events with a registered translator follow the pipeline
+`DomainEvent → IntegrationEventTranslator → IntegrationEvent → PayloadSerializer → INSERT` and are persisted as
+integration events. Domain events without a translator are persisted as well, carrying the domain event itself: the
+row takes the domain event's own type and revision, and its payload is produced by reflection over the event's public
+properties. Every record produces a row, so the unique constraint over `(aggregate_type, aggregate_id,
+aggregate_version)` can detect lost updates on every state transition.
 
 The library is opinionated on correctness: transactions are always required, JSON validity is always checked, and every
 schema decision is left to you: table name, column names, and identity column storage type are all configurable.
@@ -53,12 +56,12 @@ The library does not create or manage the outbox table. Add it in your own migra
 ```sql
 CREATE TABLE outbox_events
 (
-    id                BINARY(16)   NOT NULL COMMENT 'The event identifier in Version 4 UUID format (e.g. 123e4567-e89b-12d3-a456-426614174000).',
+    id                BINARY(16)   NOT NULL COMMENT 'The event identifier in UUID format (v7 by default, e.g. 018f8e94-1c2a-7c3d-9b4e-5f6a7b8c9d0e).',
     payload           JSON         NOT NULL COMMENT 'The event payload serialized as a JSON object (e.g. {"transaction_id":"..."}).',
-    revision          INT          NOT NULL COMMENT 'The positive integer indicating the payload schema revision of the integration event (e.g. 1).',
-    event_type        VARCHAR(255) NOT NULL COMMENT 'The integration event class name in CamelCase (e.g. PaymentConfirmed). Reflects the public contract, not the internal domain event.',
+    revision          INT          NOT NULL COMMENT 'The positive integer indicating the schema revision of the persisted event payload (e.g. 1).',
+    event_type        VARCHAR(255) NOT NULL COMMENT 'The event type in CamelCase (e.g. PaymentConfirmed). Carries the integration event type when a translator matches, otherwise the domain event type.',
     occurred_at       TIMESTAMP(6) NOT NULL COMMENT 'The UTC date and time when the event occurred in ISO 8601 format (e.g. 2026-02-13T08:49:44.931408+00:00).',
-    aggregate_id      BINARY(16)   NOT NULL COMMENT 'The aggregate root identifier in Version 4 UUID format (e.g. 123e4567-e89b-12d3-a456-426614174000).',
+    aggregate_id      BINARY(16)   NOT NULL COMMENT 'The aggregate root identifier in UUID format (e.g. 018f8e94-1c2a-7c3d-9b4e-5f6a7b8c9d0e).',
     aggregate_type    VARCHAR(255) NOT NULL COMMENT 'The aggregate root class name that produced the event in CamelCase (e.g. Transaction).',
     aggregate_version BIGINT       NOT NULL COMMENT 'The version of the aggregate at the moment the event was emitted, used to detect duplicate or out-of-order events per aggregate (e.g. 1).',
     created_at        TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT 'The UTC date and time when the record was inserted in ISO 8601 format (e.g. 2026-02-13T08:49:44.931408+00:00).',
@@ -72,7 +75,7 @@ CREATE TABLE outbox_events
 The library writes to `id`, `aggregate_id`, `aggregate_type`, `event_type`, `revision`, `aggregate_version`, `payload`,
 and `occurred_at`. It never writes to `created_at`. The database fills it automatically.
 
-For aggregates whose identities are not UUID v4 strings, use VARCHAR columns and configure `IdentityColumnType::STRING`
+For aggregates whose identities are not UUID strings, use VARCHAR columns and configure `IdentityColumnType::STRING`
 (see [Customizing the table layout](#customizing-the-table-layout)):
 
 ```sql
@@ -118,12 +121,12 @@ pure enums, and date-times, and unwrapping single-property wrappers to their inn
 serializers before it for integration events that need custom shaping (see
 [Writing a custom payload serializer](#writing-a-custom-payload-serializer)).
 
-| Parameter     | Type                          | Required | Description                                                                                                                                |
-|---------------|-------------------------------|:--------:|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `connection`  | `Connection`                  |   Yes    | Doctrine DBAL connection used for all INSERT statements.                                                                                   |
-| `serializers` | `PayloadSerializers`          |   Yes    | Ordered collection of payload serializers operating on integration event records, first match wins.                                        |
-| `translators` | `IntegrationEventTranslators` |   Yes    | Ordered collection of translators mapping domain events to integration events. Records without a matching translator are silently skipped. |
-| `tableLayout` | `TableLayout`                 |    No    | Table and column configuration, defaults to `outbox_events` with BINARY(16) ids.                                                           |
+| Parameter     | Type                          | Required | Description                                                                                                                                                          |
+|---------------|-------------------------------|:--------:|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `connection`  | `Connection`                  |   Yes    | Doctrine DBAL connection used for all INSERT statements.                                                                                                             |
+| `serializers` | `PayloadSerializers`          |   Yes    | Ordered collection of payload serializers operating on integration event records, first match wins.                                                                  |
+| `translators` | `IntegrationEventTranslators` |   Yes    | Ordered collection of translators mapping domain events to integration events. Records without a matching translator are persisted carrying the domain event itself. |
+| `tableLayout` | `TableLayout`                 |    No    | Table and column configuration, defaults to `outbox_events` with BINARY(16) ids.                                                                                     |
 
 ### Producing events from an aggregate
 
@@ -140,7 +143,7 @@ declare(strict_types=1);
 use TinyBlocks\BuildingBlocks\Event\DomainEvent;
 use TinyBlocks\BuildingBlocks\Event\DomainEventBehavior;
 
-# A domain event. Stays internal to the bounded context; a translator maps it to the public contract.
+# A domain event. Stays internal to the bounded context. A translator maps it to the public contract.
 final readonly class OrderPlaced implements DomainEvent
 {
     use DomainEventBehavior;
@@ -264,9 +267,12 @@ $repository = new DoctrineOutboxRepository(
 
 #### Domain events without translators
 
-Domain events that have no registered translator are silently skipped. They never enter the outbox. This is the
-canonical way to declare that an event is internal to the bounded context: registering a translator is the explicit
-opt-in for cross-context publication.
+Domain events that have no registered translator are persisted as well, carrying the domain event itself. The
+`event_type` and `revision` columns take the domain event's own `eventType()` and `revision()`, and the payload is
+produced by reflection over the domain event's public properties through
+[`tiny-blocks/mapper`](https://github.com/tiny-blocks/mapper). No `PayloadSerializer` is consulted on this path.
+Registering a translator remains the explicit opt-in for shaping the public contract: it replaces the persisted
+payload with the integration event produced by the Anti-Corruption Layer.
 
 ```php
 <?php
@@ -278,7 +284,8 @@ use TinyBlocks\Outbox\DoctrineOutboxRepository;
 use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
 use TinyBlocks\Outbox\Serialization\PayloadSerializers;
 
-# InventoryReserved has no translator registered: it is purely internal and will never be persisted.
+# InventoryReserved has no translator registered: its row carries the domain event itself,
+# with event_type InventoryReserved and a payload reflecting its public properties.
 $repository = new DoctrineOutboxRepository(
     connection: $connection,
     serializers: PayloadSerializers::createFrom(elements: [
@@ -363,7 +370,8 @@ violations with SQLite fall under `DuplicateOutboxEvent`.
 `PayloadSerializerReflection` covers integration events that `tiny-blocks/mapper` maps by reflection: scalars,
 nested value objects, backed and pure enums, and date-times, with single-property wrappers unwrapped to their inner
 value. Implement `PayloadSerializer` explicitly for integration events that need a payload shape the mapper does not
-produce by default.
+produce by default. Payload serializers apply to translated records only: rows persisted without a translator
+serialize the domain event by reflection and never consult the `PayloadSerializers` collection.
 
 Both `supports()` and `serialize()` receive the full `IntegrationEventRecord`, giving access to `$record->event`
 (the `IntegrationEvent`), `$record->aggregateType`, `$record->aggregateId`, `$record->aggregateVersion`, and all
@@ -498,9 +506,9 @@ extend `RuntimeException` and can be caught independently for precise idempotenc
 
 ### 05. Why is BINARY(16) the default for identity columns?
 
-UUID v4 identifiers are 128 bits, which fit exactly in 16 bytes. Storing them as `BINARY(16)` instead of `VARCHAR(36)`
+UUID identifiers are 128 bits, which fit exactly in 16 bytes. Storing them as `BINARY(16)` instead of `VARCHAR(36)`
 saves 20 bytes per row on each identity column and indexes more efficiently in B-tree structures. Aggregate identities
-that are not UUID v4 strings, for example ULID, snowflake, integer, or opaque strings, must configure
+that are not UUID strings, for example ULID, snowflake, integer, or opaque strings, must configure
 `IdentityColumnType::STRING` via `Columns::builder()` and use a compatible column type in the schema.
 
 ### 06. Does this library read events from the outbox?
@@ -534,13 +542,14 @@ caller.
 The consumer is responsible for any retry policy. A common pattern is to wrap the unit of work (aggregate save +
 outbox push) in a retry loop that catches transient exceptions and re-executes the entire transaction.
 
-### 10. Why are domain events without a translator silently skipped instead of failing loudly?
+### 10. Why are domain events without a translator persisted instead of skipped?
 
-The absence of a translator is the canonical declaration that the event is internal to the bounded context. Failing
-loudly would force every internal domain event to either register a no-op translator or be filtered before the call to
-`push()`, both of which leak the public-contract concern into code that should not know about it. Silent skip keeps the
-boundary one-sided: registering a translator is the explicit opt-in for cross-context publication. Code that does not
-register a translator is correct by design.
+The outbox table registers every domain fact. The unique constraint over `aggregate_type`, `aggregate_id`, and
+`aggregate_version` can only detect lost updates when every state transition writes a row. Skipping untranslated
+events would leave gaps in the aggregate's history and let two concurrent producers commit the same aggregate version
+unnoticed. Untranslated events are therefore persisted carrying the domain event itself, with its own type, revision,
+and a reflection-produced payload. Registering a translator remains the explicit opt-in for shaping the public
+contract that crosses the bounded-context boundary.
 
 ### 11. Why doesn't the library accept a DomainEvent directly for publication?
 

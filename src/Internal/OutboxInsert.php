@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace TinyBlocks\Outbox\Internal;
 
+use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\BuildingBlocks\Event\IntegrationEventRecord;
 use TinyBlocks\Outbox\Schema\TableLayout;
 use TinyBlocks\Outbox\Serialization\SerializedPayload;
@@ -15,7 +16,7 @@ final readonly class OutboxInsert
     }
 
     public static function from(
-        IntegrationEventRecord $record,
+        EventRecord|IntegrationEventRecord $record,
         SerializedPayload $payload,
         TableLayout $tableLayout
     ): OutboxInsert {

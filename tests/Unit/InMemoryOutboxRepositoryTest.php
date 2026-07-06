@@ -81,6 +81,111 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         self::assertCount(2, $outbox->persistedRecords());
     }
 
+    public function testPushWhenEventRecordsIsEmptyThenNoRecordIsPersisted(): void
+    {
+        /** @Given an in-memory repository with a configured translator and serializer */
+        $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
+        );
+
+        /** @And a transaction is started */
+        $outbox->beginTransaction();
+
+        /** @When an empty EventRecords collection is pushed */
+        $outbox->push(records: EventRecords::createFromEmpty());
+
+        /** @And the transaction is committed */
+        $outbox->commit();
+
+        /** @Then no records are persisted in the repository */
+        self::assertCount(0, $outbox->persistedRecords());
+    }
+
+    public function testPushWhenTwoRecordsShareTheSameIdThenDuplicateOutboxEvent(): void
+    {
+        /** @Given an in-memory repository with a configured translator and serializer */
+        $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
+        );
+
+        /** @And a transaction is started */
+        $outbox->beginTransaction();
+
+        /** @And a fixed event id shared by both records */
+        $eventId = Uuid::uuid4();
+
+        /** @And a first record with the fixed id is pushed */
+        $outbox->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(
+                id: $eventId,
+                event: new OrderPlaced(),
+                aggregateType: 'Order'
+            )
+        ]));
+
+        /** @Then a duplicate outbox event exception is thrown */
+        $this->expectException(DuplicateOutboxEvent::class);
+
+        /** @When a second record with the same id is pushed */
+        $outbox->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(
+                id: $eventId,
+                event: new OrderPlaced(),
+                aggregateType: 'Order',
+                aggregateVersion: AggregateVersion::of(value: 2)
+            )
+        ]));
+    }
+
+    public function testPushWhenNoTranslatorMatchesThenDomainEventRecordIsPersisted(): void
+    {
+        /** @Given an in-memory repository with no translators registered */
+        $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFromEmpty(),
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
+        );
+
+        /** @And a transaction is started */
+        $outbox->beginTransaction();
+
+        /** @When a record whose event has no matching translator is pushed */
+        $outbox->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(
+                event: new OrderPlaced(),
+                aggregateType: 'Order'
+            )
+        ]));
+
+        /** @And the transaction is committed */
+        $outbox->commit();
+
+        /** @Then the record is persisted carrying the domain event */
+        self::assertCount(1, $outbox->persistedRecords());
+    }
+
+    public function testPushWhenRealEventualAggregateRootThenEventRecordIsPersisted(): void
+    {
+        /** @Given an in-memory repository with a translator and a reflection payload serializer */
+        $outbox = new InMemoryOutboxRepositoryMock(
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+            payloadSerializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()])
+        );
+
+        /** @And a transaction is started */
+        $outbox->beginTransaction();
+
+        /** @When the aggregate's recorded events are pushed */
+        $outbox->push(records: Order::place(orderId: Uuid::uuid4()->toString())->pullEvents());
+
+        /** @And the transaction is committed */
+        $outbox->commit();
+
+        /** @Then one event record is persisted in the repository */
+        self::assertCount(1, $outbox->persistedRecords());
+    }
+
     public function testPushWhenNoTransactionIsActiveThenOutboxRequiresActiveTransaction(): void
     {
         /** @Given an in-memory repository without an active transaction */
@@ -93,29 +198,6 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $this->expectException(OutboxRequiresActiveTransaction::class);
 
         /** @When pushing a record without starting a transaction */
-        $outbox->push(records: EventRecords::createFrom(elements: [
-            EventRecordFactory::create(
-                event: new OrderPlaced(),
-                aggregateType: 'Order'
-            )
-        ]));
-    }
-
-    public function testPushWhenNoPayloadSerializerMatchesThenPayloadSerializerNotConfigured(): void
-    {
-        /** @Given an in-memory repository with a translator but no payload serializers */
-        $outbox = new InMemoryOutboxRepositoryMock(
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            payloadSerializers: PayloadSerializers::createFromEmpty()
-        );
-
-        /** @And a transaction is started */
-        $outbox->beginTransaction();
-
-        /** @Then an exception indicating no configured payload serializer is thrown */
-        $this->expectException(PayloadSerializerNotConfigured::class);
-
-        /** @When pushing a record whose integration event class has no matching serializer */
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
@@ -147,39 +229,25 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         ]));
     }
 
-    public function testPushWhenTwoRecordsShareTheSameIdThenDuplicateOutboxEvent(): void
+    public function testPushWhenNoPayloadSerializerMatchesThenPayloadSerializerNotConfigured(): void
     {
-        /** @Given an in-memory repository with a configured translator and serializer */
+        /** @Given an in-memory repository with a translator but no payload serializers */
         $outbox = new InMemoryOutboxRepositoryMock(
             translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
+            payloadSerializers: PayloadSerializers::createFromEmpty()
         );
 
         /** @And a transaction is started */
         $outbox->beginTransaction();
 
-        /** @And a fixed event id shared by both records */
-        $eventId = Uuid::uuid4();
+        /** @Then an exception indicating no configured payload serializer is thrown */
+        $this->expectException(PayloadSerializerNotConfigured::class);
 
-        /** @And a first record with the fixed id is pushed */
+        /** @When pushing a record whose integration event class has no matching serializer */
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                id: $eventId
-            )
-        ]));
-
-        /** @Then a duplicate outbox event exception is thrown */
-        $this->expectException(DuplicateOutboxEvent::class);
-
-        /** @When a second record with the same id is pushed */
-        $outbox->push(records: EventRecords::createFrom(elements: [
-            EventRecordFactory::create(
-                event: new OrderPlaced(),
-                aggregateType: 'Order',
-                id: $eventId,
-                aggregateVersion: AggregateVersion::of(value: 2)
+                aggregateType: 'Order'
             )
         ]));
     }
@@ -202,8 +270,8 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
                 aggregateId: $aggregateId,
+                aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
@@ -215,78 +283,10 @@ final class InMemoryOutboxRepositoryTest extends TestCase
         $outbox->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
                 aggregateId: $aggregateId,
+                aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
-    }
-
-    public function testPushWhenEventRecordsIsEmptyThenNoRecordIsPersisted(): void
-    {
-        /** @Given an in-memory repository with a configured translator and serializer */
-        $outbox = new InMemoryOutboxRepositoryMock(
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
-        );
-
-        /** @And a transaction is started */
-        $outbox->beginTransaction();
-
-        /** @When an empty EventRecords collection is pushed */
-        $outbox->push(records: EventRecords::createFromEmpty());
-
-        /** @And the transaction is committed */
-        $outbox->commit();
-
-        /** @Then no records are persisted in the repository */
-        self::assertCount(0, $outbox->persistedRecords());
-    }
-
-    public function testPushWhenRealEventualAggregateRootThenEventRecordIsPersisted(): void
-    {
-        /** @Given an in-memory repository with a translator and a reflection payload serializer */
-        $outbox = new InMemoryOutboxRepositoryMock(
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()])
-        );
-
-        /** @And a transaction is started */
-        $outbox->beginTransaction();
-
-        /** @When the aggregate's recorded events are pushed */
-        $outbox->push(records: Order::place(orderId: Uuid::uuid4()->toString())->pullEvents());
-
-        /** @And the transaction is committed */
-        $outbox->commit();
-
-        /** @Then one event record is persisted in the repository */
-        self::assertCount(1, $outbox->persistedRecords());
-    }
-
-    public function testPushWhenNoTranslatorMatchesThenRecordIsSilentlySkipped(): void
-    {
-        /** @Given an in-memory repository with no translators registered */
-        $outbox = new InMemoryOutboxRepositoryMock(
-            translators: IntegrationEventTranslators::createFromEmpty(),
-            payloadSerializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()])
-        );
-
-        /** @And a transaction is started */
-        $outbox->beginTransaction();
-
-        /** @When a record whose event has no matching translator is pushed */
-        $outbox->push(records: EventRecords::createFrom(elements: [
-            EventRecordFactory::create(
-                event: new OrderPlaced(),
-                aggregateType: 'Order'
-            )
-        ]));
-
-        /** @And the transaction is committed */
-        $outbox->commit();
-
-        /** @Then no records are persisted and no exception is raised */
-        self::assertCount(0, $outbox->persistedRecords());
     }
 }

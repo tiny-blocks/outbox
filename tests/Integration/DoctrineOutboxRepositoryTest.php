@@ -8,6 +8,7 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Ramsey\Uuid\Uuid;
 use Test\TinyBlocks\Outbox\Models\EventRecordFactory;
+use Test\TinyBlocks\Outbox\Models\InventoryReserved;
 use Test\TinyBlocks\Outbox\Models\Order;
 use Test\TinyBlocks\Outbox\Models\OrderPlaced;
 use Test\TinyBlocks\Outbox\Models\OrderPlacedTranslator;
@@ -119,9 +120,9 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         /** @When pushing the record */
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
+                id: $recordId,
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                id: $recordId
+                aggregateType: 'Order'
             )
         ]));
 
@@ -246,8 +247,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository = new DoctrineOutboxRepository(
             connection: self::$connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         );
 
         /** @And the connection has an active transaction */
@@ -290,8 +291,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         new DoctrineOutboxRepository(
             connection: $connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         )->push(
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
@@ -318,8 +319,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
                 occurredAt: Instant::fromString(value: '2024-06-01 12:00:00.000000'),
+                aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 3)
             )
         ]));
@@ -378,8 +379,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository = new DoctrineOutboxRepository(
             connection: self::$connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         );
 
         /** @And the connection has an active transaction */
@@ -421,9 +422,9 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         /** @When pushing a record with the null-byte UUID */
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
+                id: $recordId,
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                id: $recordId
+                aggregateType: 'Order'
             )
         ]));
 
@@ -460,6 +461,45 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: $records);
     }
 
+    public function testPushWhenNoTranslatorMatchesThenDomainEventRowIsPersisted(): void
+    {
+        /** @Given a repository with no translators and no serializers */
+        $repository = new DoctrineOutboxRepository(
+            connection: self::$connection,
+            serializers: PayloadSerializers::createFromEmpty(),
+            translators: IntegrationEventTranslators::createFromEmpty()
+        );
+
+        /** @And the connection has an active transaction */
+        self::$connection->beginTransaction();
+
+        /** @When pushing an inventory reserved record */
+        $repository->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(
+                event: new InventoryReserved(sku: 'SKU-1', quantity: 3),
+                aggregateType: 'Inventory'
+            )
+        ]));
+
+        /** @And the transaction is committed */
+        self::$connection->commit();
+
+        /** @Then the row is retrievable from the database */
+        $row = self::$connection->fetchAssociative('SELECT * FROM outbox_events LIMIT 1');
+
+        /** @And the event_type reflects the domain event type */
+        self::assertSame('InventoryReserved', $row['event_type']);
+
+        /** @And the revision comes from the domain event */
+        self::assertSame(1, (int)$row['revision']);
+
+        /** @And the payload reflects the domain event's public properties */
+        self::assertSame(['sku' => 'SKU-1', 'quantity' => 3], json_decode($row['payload'], true));
+
+        /** @And the aggregate_type is correct */
+        self::assertSame('Inventory', $row['aggregate_type']);
+    }
+
     public function testPushWhenMultipleSerializersAndFirstMatchesThenFirstIsUsed(): void
     {
         /** @Given a repository with a translator and two serializers supporting the same integration event */
@@ -490,31 +530,52 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         self::assertSame('{}', self::$connection->fetchOne('SELECT payload FROM outbox_events LIMIT 1'));
     }
 
-    public function testPushWhenNoTranslatorsRegisteredThenRecordIsSilentlySkipped(): void
+    public function testPushWhenOnlyOrderTranslatorRegisteredThenBothRowsPersisted(): void
     {
-        /** @Given a repository with no translators and a reflection serializer */
+        /** @Given a repository with only an order translator and both serializers */
         $repository = new DoctrineOutboxRepository(
             connection: self::$connection,
-            serializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()]),
-            translators: IntegrationEventTranslators::createFromEmpty()
+            serializers: PayloadSerializers::createFrom(elements: [
+                new OrderPlacedSerializer(),
+                new RefundIssuedSerializer()
+            ]),
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         );
 
         /** @And the connection has an active transaction */
         self::$connection->beginTransaction();
 
-        /** @When pushing an order placed record */
+        /** @When pushing one order placed and one refund issued record */
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order'
+                aggregateType: 'Order',
+                aggregateVersion: AggregateVersion::of(value: 1)
+            ),
+            EventRecordFactory::create(
+                event: new RefundIssued(),
+                aggregateType: 'Refund',
+                aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
 
         /** @And the transaction is committed */
         self::$connection->commit();
 
-        /** @Then no records are persisted */
-        self::assertSame(0, (int)self::$connection->fetchOne('SELECT COUNT(*) FROM outbox_events'));
+        /** @Then exactly two rows are persisted */
+        self::assertSame(2, (int)self::$connection->fetchOne('SELECT COUNT(*) FROM outbox_events'));
+
+        /** @And the translated row carries the integration event type */
+        self::assertSame(
+            'OrderShipped',
+            self::$connection->fetchOne("SELECT event_type FROM outbox_events WHERE aggregate_type = 'Order'")
+        );
+
+        /** @And the untranslated row carries the domain event type */
+        self::assertSame(
+            'RefundIssued',
+            self::$connection->fetchOne("SELECT event_type FROM outbox_events WHERE aggregate_type = 'Refund'")
+        );
     }
 
     public function testPushWhenSerializerReturnsInvalidJsonThenInvalidPayloadJson(): void
@@ -569,8 +630,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository = new DoctrineOutboxRepository(
             connection: self::$connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         );
 
         /** @And a fixed aggregate identity */
@@ -583,8 +644,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
                 aggregateId: $aggregateId,
+                aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
@@ -596,50 +657,11 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
                 aggregateId: $aggregateId,
-                aggregateVersion: AggregateVersion::of(value: 1)
-            )
-        ]));
-    }
-
-    public function testPushWhenOnlyOrderTranslatorRegisteredThenRefundEventIsSkipped(): void
-    {
-        /** @Given a repository with only an order translator and both serializers */
-        $repository = new DoctrineOutboxRepository(
-            connection: self::$connection,
-            serializers: PayloadSerializers::createFrom(elements: [
-                new OrderPlacedSerializer(),
-                new RefundIssuedSerializer()
-            ]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
-        );
-
-        /** @And the connection has an active transaction */
-        self::$connection->beginTransaction();
-
-        /** @When pushing one order placed and one refund issued record */
-        $repository->push(records: EventRecords::createFrom(elements: [
-            EventRecordFactory::create(
-                event: new OrderPlaced(),
                 aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 1)
-            ),
-            EventRecordFactory::create(
-                event: new RefundIssued(),
-                aggregateType: 'Refund',
-                aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
-
-        /** @And the transaction is committed */
-        self::$connection->commit();
-
-        /** @Then exactly one row is persisted */
-        self::assertSame(1, (int)self::$connection->fetchOne('SELECT COUNT(*) FROM outbox_events'));
-
-        /** @And the persisted event_type is the order integration event */
-        self::assertSame('OrderShipped', self::$connection->fetchOne('SELECT event_type FROM outbox_events LIMIT 1'));
     }
 
     public function testPushWhenTwoTranslatorsSupportSameEventThenFirstTranslatorWins(): void
@@ -708,8 +730,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository = new DoctrineOutboxRepository(
             connection: self::$connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         );
 
         /** @And the connection has an active transaction */
@@ -777,8 +799,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
                 aggregateId: $aggregateId,
+                aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
@@ -793,8 +815,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
                 aggregateId: $aggregateId,
+                aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 1)
             )
         ]));
@@ -862,16 +884,16 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         new DoctrineOutboxRepository(
             connection: $connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         )->push(
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
-                    event: new OrderPlaced(),
-                    aggregateType: 'Order',
                     id: Uuid::fromString('550e8400-e29b-41d4-a716-446655440000'),
+                    event: new OrderPlaced(),
                     occurredAt: Instant::fromString(value: '2021-01-01T00:00:00+00:00'),
-                    aggregateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
+                    aggregateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+                    aggregateType: 'Order'
                 )
             ])
         );
@@ -890,6 +912,36 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             ],
             $capturedParameters
         );
+    }
+
+    public function testPushWhenSameUntranslatedRecordPushedTwiceThenDuplicateOutboxEvent(): void
+    {
+        /** @Given a repository with no translators and no serializers */
+        $repository = new DoctrineOutboxRepository(
+            connection: self::$connection,
+            serializers: PayloadSerializers::createFromEmpty(),
+            translators: IntegrationEventTranslators::createFromEmpty()
+        );
+
+        /** @And a record without a matching translator */
+        $records = EventRecords::createFrom(elements: [
+            EventRecordFactory::create(
+                event: new InventoryReserved(sku: 'SKU-1', quantity: 3),
+                aggregateType: 'Inventory'
+            )
+        ]);
+
+        /** @And the connection has an active transaction */
+        self::$connection->beginTransaction();
+
+        /** @And the record is pushed once */
+        $repository->push(records: $records);
+
+        /** @Then an exception indicating a duplicate event is thrown */
+        $this->expectException(DuplicateOutboxEvent::class);
+
+        /** @When pushing the same record again */
+        $repository->push(records: $records);
     }
 
     public function testPushWhenUniqueConstraintOnEventIdThenDuplicateOutboxEventIsThrown(): void
@@ -953,8 +1005,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository = new DoctrineOutboxRepository(
             connection: self::$connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         );
 
         /** @And a non-UUID aggregate identity */
@@ -967,8 +1019,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                aggregateType: 'Order',
-                aggregateId: $aggregateId
+                aggregateId: $aggregateId,
+                aggregateType: 'Order'
             )
         ]));
 
@@ -1070,6 +1122,33 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: $records);
     }
 
+    public function testPushWhenUntranslatedDomainEventPayloadIsNotEncodableThenInvalidPayloadJson(): void
+    {
+        /** @Given a repository with no translators and no serializers */
+        $repository = new DoctrineOutboxRepository(
+            connection: self::$connection,
+            serializers: PayloadSerializers::createFromEmpty(),
+            translators: IntegrationEventTranslators::createFromEmpty()
+        );
+
+        /** @And the connection has an active transaction */
+        self::$connection->beginTransaction();
+
+        /** @And a domain event whose payload cannot be encoded as JSON */
+        $records = EventRecords::createFrom(elements: [
+            EventRecordFactory::create(
+                event: new InventoryReserved(sku: "\xB1\x31", quantity: 1),
+                aggregateType: 'Inventory'
+            )
+        ]);
+
+        /** @Then an exception indicating invalid JSON payload is thrown */
+        $this->expectException(InvalidPayloadJson::class);
+
+        /** @When pushing the record */
+        $repository->push(records: $records);
+    }
+
     public function testPushWhenUniqueConstraintWithCustomNameThenDuplicateAggregateVersionIsThrown(): void
     {
         /** @Given a mocked connection with an active transaction */
@@ -1095,8 +1174,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         new DoctrineOutboxRepository(
             connection: $connection,
             serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
-            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
-            tableLayout: $tableLayout
+            tableLayout: $tableLayout,
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()])
         )->push(
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
@@ -1137,8 +1216,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
             records: EventRecords::createFrom(elements: [
                 EventRecordFactory::create(
                     event: new OrderPlaced(),
-                    aggregateType: 'Order',
-                    aggregateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8'
+                    aggregateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+                    aggregateType: 'Order'
                 )
             ])
         );

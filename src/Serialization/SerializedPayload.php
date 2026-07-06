@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace TinyBlocks\Outbox\Serialization;
 
+use JsonException;
+use TinyBlocks\Mapper\Mapper;
 use TinyBlocks\Outbox\Exceptions\InvalidPayloadJson;
 
 final readonly class SerializedPayload
@@ -33,12 +35,33 @@ final readonly class SerializedPayload
      *
      * @param array<int|string, mixed> $payload The associative array to encode as the serialized payload.
      * @return SerializedPayload The serialized payload with the JSON-encoded representation.
+     * @throws InvalidPayloadJson If the array cannot be encoded as JSON.
      */
     public static function fromArray(array $payload): SerializedPayload
     {
-        $json = json_encode($payload, JSON_THROW_ON_ERROR);
+        try {
+            $json = json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw InvalidPayloadJson::forEncodingFailure(cause: $exception);
+        }
 
         return new SerializedPayload(payload: $json);
+    }
+
+    /**
+     * Creates a SerializedPayload from an event object by mapping its public properties.
+     *
+     * <p>Delegates to <code>tiny-blocks/mapper</code>, which resolves scalars, nested value objects,
+     * backed and pure enums, and date-times, and unwraps single-property wrappers to their inner
+     * value.</p>
+     *
+     * @param object $event The event whose public properties become the payload.
+     * @return SerializedPayload The serialized payload with the JSON-encoded representation.
+     * @throws InvalidPayloadJson If the event cannot be encoded as JSON.
+     */
+    public static function fromEvent(object $event): SerializedPayload
+    {
+        return SerializedPayload::fromArray(payload: Mapper::create()->toArray(source: $event));
     }
 
     /**
