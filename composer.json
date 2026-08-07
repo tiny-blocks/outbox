@@ -32,19 +32,19 @@
         "php": "^8.5",
         "doctrine/dbal": "^4.4",
         "ramsey/uuid": "^4.9",
-        "tiny-blocks/building-blocks": "^5.1",
-        "tiny-blocks/collection": "^2.5",
-        "tiny-blocks/mapper": "^3.1"
+        "tiny-blocks/building-blocks": "^5.3",
+        "tiny-blocks/collection": "^2.6",
+        "tiny-blocks/mapper": "^3.2"
     },
     "require-dev": {
         "ergebnis/composer-normalize": "^2.52",
-        "infection/infection": "^0.33",
+        "infection/infection": "^0.34",
         "phpstan/phpstan": "^2.2",
-        "phpunit/phpunit": "^13.1",
-        "slevomat/coding-standard": "^8.30",
+        "phpunit/phpunit": "^13.2",
+        "slevomat/coding-standard": "^8.31",
         "squizlabs/php_codesniffer": "^4.0",
-        "tiny-blocks/docker-container": "^3.0",
-        "tiny-blocks/environment-variable": "^1.2"
+        "tiny-blocks/docker-container": "^3.1",
+        "tiny-blocks/environment-variable": "^2.0"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
