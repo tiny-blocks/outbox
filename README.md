@@ -75,6 +75,14 @@ CREATE TABLE outbox_events
 The library writes to `id`, `aggregate_id`, `aggregate_type`, `event_type`, `revision`, `aggregate_version`, `payload`,
 and `occurred_at`. It never writes to `created_at`. The database fills it automatically.
 
+A table may also carry the correlation id of the unit of work that emitted each event, so the consumer of the event
+can keep the trace of the request that caused it. The column is optional and nullable, and the library writes it only
+when the layout enables it (see [Carrying the correlation id](#carrying-the-correlation-id)):
+
+```sql
+correlation_id VARCHAR(255) NULL COMMENT 'The correlation id of the unit of work that emitted the event, absent when none was in flight (e.g. 018f8e94-1c2a-7c3d-9b4e-5f6a7b8c9d0e).'
+```
+
 For aggregates whose identities are not UUID strings, use VARCHAR columns and configure `IdentityColumnType::STRING`
 (see [Customizing the table layout](#customizing-the-table-layout)):
 
@@ -121,12 +129,13 @@ pure enums, and date-times, and unwrapping single-property wrappers to their inn
 serializers before it for integration events that need custom shaping (see
 [Writing a custom payload serializer](#writing-a-custom-payload-serializer)).
 
-| Parameter     | Type                          | Required | Description                                                                                                                                                          |
-|---------------|-------------------------------|:--------:|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `connection`  | `Connection`                  |   Yes    | Doctrine DBAL connection used for all INSERT statements.                                                                                                             |
-| `serializers` | `PayloadSerializers`          |   Yes    | Ordered collection of payload serializers operating on integration event records, first match wins.                                                                  |
-| `translators` | `IntegrationEventTranslators` |   Yes    | Ordered collection of translators mapping domain events to integration events. Records without a matching translator are persisted carrying the domain event itself. |
-| `tableLayout` | `TableLayout`                 |    No    | Table and column configuration, defaults to `outbox_events` with BINARY(16) ids.                                                                                     |
+| Parameter       | Type                          | Required | Description                                                                                                                                                          |
+|-----------------|-------------------------------|:--------:|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `connection`    | `Connection`                  |   Yes    | Doctrine DBAL connection used for all INSERT statements.                                                                                                             |
+| `serializers`   | `PayloadSerializers`          |   Yes    | Ordered collection of payload serializers operating on integration event records, first match wins.                                                                  |
+| `translators`   | `IntegrationEventTranslators` |   Yes    | Ordered collection of translators mapping domain events to integration events. Records without a matching translator are persisted carrying the domain event itself. |
+| `tableLayout`   | `TableLayout`                 |    No    | Table and column configuration, defaults to `outbox_events` with BINARY(16) ids.                                                                                     |
+| `correlationId` | `Closure`                     |    No    | Reads the correlation id of the unit of work in flight at each write, an empty string when none. Written only when the layout enables the column.                    |
 
 ### Producing events from an aggregate
 
@@ -348,6 +357,7 @@ require both `name:` and `type:`, all other methods require only `name:`.
 | `withAggregateType(name:)`      | `aggregate_type`    |              | Renames the aggregate type column.                               |
 | `withAggregateVersion(name:)`   | `aggregate_version` |              | Renames the aggregate version column.                            |
 | `withCreatedAt(name:)`          | `created_at`        |              | Renames the record creation timestamp column.                    |
+| `withCorrelationId(name:)`      | none, disabled      |              | Enables the correlation id column under the given name.          |
 
 `TableLayout::builder()` controls the table name, columns, and unique constraint name.
 
@@ -364,6 +374,35 @@ The library expects this name by default, if you rename it in your DDL, configur
 Constraint violation detection works with MySQL, MariaDB, PostgreSQL, and SQL Server. These DBMSs include the
 constraint name in their violation messages. SQLite is not supported because it omits the constraint name. All unique
 violations with SQLite fall under `DuplicateOutboxEvent`.
+
+### Carrying the correlation id
+
+Enable the column in the layout and give the repository a reader of the correlation id in flight. The reader runs at
+each write, so one repository serves every request of a long-lived container. An empty string stores NULL, which is
+what a worker outside any request writes.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
+use TinyBlocks\Outbox\DoctrineOutboxRepository;
+use TinyBlocks\Outbox\Schema\Columns;
+use TinyBlocks\Outbox\Schema\TableLayout;
+use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
+use TinyBlocks\Outbox\Serialization\PayloadSerializers;
+
+$repository = new DoctrineOutboxRepository(
+    connection: $connection,
+    serializers: PayloadSerializers::createFrom(elements: [new PayloadSerializerReflection()]),
+    translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+    tableLayout: TableLayout::builder()
+        ->withColumns(columns: Columns::builder()->withCorrelationId(name: 'correlation_id')->build())
+        ->build(),
+    correlationId: static fn(): string => $correlationId->toString()
+);
+```
 
 ### Writing a custom payload serializer
 

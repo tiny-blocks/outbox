@@ -1252,4 +1252,161 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         /** @When pushing the unsupported event */
         $repository->push(records: $records);
     }
+
+    public function testPushWhenCorrelationColumnIsEnabledThenRowCarriesTheCorrelationIdOfTheUnitOfWork(): void
+    {
+        /** @Given a layout that enables the correlation id column */
+        $tableLayout = self::correlatedLayout();
+
+        /** @And the outbox table carries that column */
+        OutboxTableFactory::addCorrelationIdColumn(connection: self::$connection, tableLayout: $tableLayout);
+
+        /** @And a repository that reads the correlation id of the unit of work in flight */
+        $repository = new DoctrineOutboxRepository(
+            connection: self::$connection,
+            serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+            tableLayout: $tableLayout,
+            correlationId: static fn(): string => 'req-0001'
+        );
+
+        /** @When a record is pushed inside a committed transaction */
+        self::$connection->beginTransaction();
+        $repository->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(event: new OrderPlaced(), aggregateType: 'Order')
+        ]));
+        self::$connection->commit();
+
+        /** @Then the row carries the correlation id */
+        self::assertSame('req-0001', self::$connection->fetchOne('SELECT correlation_id FROM outbox_events'));
+    }
+
+    public function testPushWhenCorrelationIdIsEmptyThenColumnIsNull(): void
+    {
+        /** @Given a layout that enables the correlation id column, on a table that carries it */
+        $tableLayout = self::correlatedLayout();
+        OutboxTableFactory::addCorrelationIdColumn(connection: self::$connection, tableLayout: $tableLayout);
+
+        /** @And a repository whose unit of work has no correlation id, as a worker outside any request */
+        $repository = new DoctrineOutboxRepository(
+            connection: self::$connection,
+            serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+            tableLayout: $tableLayout,
+            correlationId: static fn(): string => ''
+        );
+
+        /** @When a record is pushed inside a committed transaction */
+        self::$connection->beginTransaction();
+        $repository->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(event: new OrderPlaced(), aggregateType: 'Order')
+        ]));
+        self::$connection->commit();
+
+        /** @Then the column holds NULL instead of an empty string */
+        self::assertNull(self::$connection->fetchOne('SELECT correlation_id FROM outbox_events'));
+    }
+
+    public function testPushWhenCorrelationColumnIsEnabledWithoutReaderThenColumnIsNull(): void
+    {
+        /** @Given a layout that enables the correlation id column, on a table that carries it */
+        $tableLayout = self::correlatedLayout();
+        OutboxTableFactory::addCorrelationIdColumn(connection: self::$connection, tableLayout: $tableLayout);
+
+        /** @And a repository built without a correlation id reader */
+        $repository = new DoctrineOutboxRepository(
+            connection: self::$connection,
+            serializers: PayloadSerializers::createFrom(elements: []),
+            translators: IntegrationEventTranslators::createFrom(elements: []),
+            tableLayout: $tableLayout
+        );
+
+        /** @When a domain event record without a translator is pushed inside a committed transaction */
+        self::$connection->beginTransaction();
+        $repository->push(records: EventRecords::createFrom(elements: [
+            EventRecordFactory::create(event: new InventoryReserved(sku: 'SKU-1', quantity: 3), aggregateType: 'Order')
+        ]));
+        self::$connection->commit();
+
+        /** @Then the column holds NULL */
+        self::assertNull(self::$connection->fetchOne('SELECT correlation_id FROM outbox_events'));
+    }
+
+    public function testPushWhenReaderIsGivenButColumnIsNotEnabledThenBindingsCarryNoCorrelationId(): void
+    {
+        /** @Given a mocked connection with an active transaction */
+        $connection = $this->createMock(Connection::class);
+        $connection->method('isTransactionActive')->willReturn(true);
+
+        /** @And a variable to capture the SQL and the parameters passed to executeStatement */
+        $captured = ['sql' => '', 'params' => []];
+        $connection->expects(self::once())
+            ->method('executeStatement')
+            ->willReturnCallback(
+                function (string $sql, array $params) use (&$captured): int {
+                    $captured = ['sql' => $sql, 'params' => $params];
+                    return 1;
+                }
+            );
+
+        /** @When a record is pushed with a correlation id reader but the default layout */
+        new DoctrineOutboxRepository(
+            connection: $connection,
+            serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+            correlationId: static fn(): string => 'req-0001'
+        )->push(
+            records: EventRecords::createFrom(elements: [
+                EventRecordFactory::create(event: new OrderPlaced(), aggregateType: 'Order')
+            ])
+        );
+
+        /** @Then neither the statement nor the bindings mention the correlation id */
+        self::assertStringNotContainsString('correlation', $captured['sql']);
+        self::assertArrayNotHasKey('correlationId', $captured['params']);
+        self::assertCount(8, $captured['params']);
+    }
+
+    public function testPushWhenCorrelationColumnIsEnabledThenStatementNamesTheColumnAndBindsTheValue(): void
+    {
+        /** @Given a mocked connection with an active transaction */
+        $connection = $this->createMock(Connection::class);
+        $connection->method('isTransactionActive')->willReturn(true);
+
+        /** @And a variable to capture the SQL and the parameters passed to executeStatement */
+        $captured = ['sql' => '', 'params' => []];
+        $connection->expects(self::once())
+            ->method('executeStatement')
+            ->willReturnCallback(
+                function (string $sql, array $params) use (&$captured): int {
+                    $captured = ['sql' => $sql, 'params' => $params];
+                    return 1;
+                }
+            );
+
+        /** @When a record is pushed with a layout that enables the correlation id column */
+        new DoctrineOutboxRepository(
+            connection: $connection,
+            serializers: PayloadSerializers::createFrom(elements: [new OrderPlacedSerializer()]),
+            translators: IntegrationEventTranslators::createFrom(elements: [new OrderPlacedTranslator()]),
+            tableLayout: self::correlatedLayout(),
+            correlationId: static fn(): string => 'req-0001'
+        )->push(
+            records: EventRecords::createFrom(elements: [
+                EventRecordFactory::create(event: new OrderPlaced(), aggregateType: 'Order')
+            ])
+        );
+
+        /** @Then the statement names the column last, with its placeholder, and binds the value */
+        self::assertStringContainsString(', occurred_at, correlation_id) VALUES (', $captured['sql']);
+        self::assertStringEndsWith(', :occurredAt, :correlationId)', $captured['sql']);
+        self::assertSame('req-0001', $captured['params']['correlationId']);
+    }
+
+    private static function correlatedLayout(): TableLayout
+    {
+        return TableLayout::builder()
+            ->withColumns(columns: Columns::builder()->withCorrelationId(name: 'correlation_id')->build())
+            ->build();
+    }
 }

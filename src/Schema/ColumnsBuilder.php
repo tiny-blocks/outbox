@@ -21,6 +21,7 @@ final class ColumnsBuilder
     private IdentityColumnType $aggregateIdType = IdentityColumnType::BINARY;
     private string $aggregateType = 'aggregate_type';
     private string $aggregateVersion = 'aggregate_version';
+    private ?string $correlationId = null;
 
     private function __construct()
     {
@@ -52,7 +53,8 @@ final class ColumnsBuilder
             occurredAt: $this->occurredAt,
             aggregateId: $this->aggregateIdType->toColumn(name: $this->aggregateIdName),
             aggregateType: $this->aggregateType,
-            aggregateVersion: $this->aggregateVersion
+            aggregateVersion: $this->aggregateVersion,
+            correlationId: $this->correlationId
         );
     }
 
@@ -165,6 +167,21 @@ final class ColumnsBuilder
     public function withAggregateVersion(string $name): ColumnsBuilder
     {
         $this->aggregateVersion = $name;
+        return $this;
+    }
+
+    /**
+     * Enables the correlation id column under the given name.
+     *
+     * <p>No column is written by default. Once enabled, every row carries the correlation id the repository reads
+     * at write time, or NULL when there is none.</p>
+     *
+     * @param string $name The correlation id column name.
+     * @return ColumnsBuilder The builder for chaining.
+     */
+    public function withCorrelationId(string $name): ColumnsBuilder
+    {
+        $this->correlationId = $name;
         return $this;
     }
 }

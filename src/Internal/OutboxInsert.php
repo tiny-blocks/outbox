@@ -18,41 +18,50 @@ final readonly class OutboxInsert
     public static function from(
         EventRecord|IntegrationEventRecord $record,
         SerializedPayload $payload,
-        TableLayout $tableLayout
+        TableLayout $tableLayout,
+        string $correlationId = ''
     ): OutboxInsert {
-        $template = <<<SQL
-        INSERT INTO %s (%s, %s, %s, %s, %s, %s, %s, %s)
-        VALUES (:id, :aggregateId, :aggregateType, :eventType, :revision,
-                :aggregateVersion, :payload, :occurredAt)
-        SQL;
-
         $columns = $tableLayout->columns;
         $idValue = $columns->id->convert(identityValue: $record->id->toString());
         $aggregateIdValue = $columns->aggregateId->convert(identityValue: $record->aggregateId->identityValue());
 
+        $names = [
+            $columns->id->name(),
+            $columns->aggregateId->name(),
+            $columns->aggregateType,
+            $columns->eventType,
+            $columns->revision,
+            $columns->aggregateVersion,
+            $columns->payload,
+            $columns->occurredAt
+        ];
+
+        $parameters = [
+            'id'               => $idValue,
+            'aggregateId'      => $aggregateIdValue,
+            'aggregateType'    => $record->aggregateType,
+            'eventType'        => $record->eventType->value,
+            'revision'         => $record->revision->value,
+            'aggregateVersion' => $record->aggregateVersion->value,
+            'payload'          => $payload->toJson(),
+            'occurredAt'       => $record->occurredAt->toIso8601()
+        ];
+
+        if (!is_null($columns->correlationId)) {
+            $names[] = $columns->correlationId;
+            $parameters['correlationId'] = $correlationId === '' ? null : $correlationId;
+        }
+
+        $placeholders = array_map(static fn(string $key): string => sprintf(':%s', $key), array_keys($parameters));
+
         return new OutboxInsert(
             sql: sprintf(
-                $template,
+                'INSERT INTO %s (%s) VALUES (%s)',
                 $tableLayout->tableName,
-                $columns->id->name(),
-                $columns->aggregateId->name(),
-                $columns->aggregateType,
-                $columns->eventType,
-                $columns->revision,
-                $columns->aggregateVersion,
-                $columns->payload,
-                $columns->occurredAt
+                implode(', ', $names),
+                implode(', ', $placeholders)
             ),
-            parameters: [
-                'id'               => $idValue,
-                'aggregateId'      => $aggregateIdValue,
-                'aggregateType'    => $record->aggregateType,
-                'eventType'        => $record->eventType->value,
-                'revision'         => $record->revision->value,
-                'aggregateVersion' => $record->aggregateVersion->value,
-                'payload'          => $payload->toJson(),
-                'occurredAt'       => $record->occurredAt->toIso8601()
-            ]
+            parameters: $parameters
         );
     }
 }

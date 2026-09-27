@@ -15,7 +15,8 @@ final readonly class Columns
         public string $occurredAt,
         public IdentityColumn $aggregateId,
         public string $aggregateType,
-        public string $aggregateVersion
+        public string $aggregateVersion,
+        public ?string $correlationId = null
     ) {
     }
 
@@ -31,6 +32,8 @@ final readonly class Columns
      * @param IdentityColumn $aggregateId The identity column for the owning aggregate.
      * @param string $aggregateType The column name for the aggregate type identifier.
      * @param string $aggregateVersion The column name for the per-aggregate version counter.
+     * @param string|null $correlationId The column name for the correlation id of the unit of work that emitted the
+     *                                   event, or null when the table carries none.
      * @return Columns The built column configuration.
      */
     public static function from(
@@ -42,7 +45,8 @@ final readonly class Columns
         string $occurredAt,
         IdentityColumn $aggregateId,
         string $aggregateType,
-        string $aggregateVersion
+        string $aggregateVersion,
+        ?string $correlationId = null
     ): Columns {
         return new Columns(
             id: $id,
@@ -53,7 +57,8 @@ final readonly class Columns
             occurredAt: $occurredAt,
             aggregateId: $aggregateId,
             aggregateType: $aggregateType,
-            aggregateVersion: $aggregateVersion
+            aggregateVersion: $aggregateVersion,
+            correlationId: $correlationId
         );
     }
 

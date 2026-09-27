@@ -98,4 +98,15 @@ final readonly class OutboxTableFactory
             )
         );
     }
+
+    public static function addCorrelationIdColumn(Connection $connection, TableLayout $tableLayout): void
+    {
+        $connection->executeStatement(
+            sprintf(
+                'ALTER TABLE %s ADD COLUMN %s VARCHAR(255) NULL',
+                $tableLayout->tableName,
+                $tableLayout->columns->correlationId
+            )
+        );
+    }
 }
