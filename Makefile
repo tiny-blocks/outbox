@@ -7,13 +7,17 @@ ifeq ($(ARCH),arm64)
 endif
 
 TTY := $(shell [ -t 0 ] && echo -it)
+HOST_USER := $(shell id -u):$(shell id -g)
+DOCKER_GID := $(shell getent group docker 2>/dev/null | cut -d: -f3)
 
 PHP_VERSION := $(shell sed -n 's/.*"php": *"^\([0-9]*\.[0-9]*\)".*/\1/p' composer.json)
 IMAGE_VERSION := 1.0.0
 PHP_IMAGE := gustavofreze/php:${PHP_VERSION}-cli-${IMAGE_VERSION}
 WORKSPACE := /var/www/html
 
-DOCKER_RUN = docker run ${PLATFORM} --rm ${TTY} --net=host \
+DOCKER_RUN = docker run ${PLATFORM} -u ${HOST_USER} --rm ${TTY} --net=host \
+	$(if $(DOCKER_GID),--group-add $(DOCKER_GID)) \
+	-e COMPOSER_HOME=/tmp/composer \
 	-e DATABASE_HOST=outbox-test-db \
 	-e TEST_DB_HOST_PORT=33306 \
 	-e DATABASE_NAME=outbox_test \
@@ -63,7 +67,6 @@ show-image: ## Show the pinned PHP tooling image
 
 .PHONY: clean
 clean: ## Remove dependencies and generated artifacts
-	@sudo chown -R ${USER}:${USER} ${PWD}
 	@rm -rf reports vendor .phpunit.cache *.lock
 
 .PHONY: help
@@ -72,7 +75,7 @@ help: ## Display this help message
 	@echo ""
 	@echo "$$(printf '$(GREEN)')Setup$$(printf '$(RESET)')"
 	@grep -E '^(configure|configure-and-update):.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*? ## "}; {printf "$(YELLOW)%-25s$(RESET) %s\n", $$1, $$2}'
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "$(YELLOW)%-25s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$$(printf '$(GREEN)')Testing$$(printf '$(RESET)')"
 	@grep -E '^(tests|test-file):.*?## .*$$' $(MAKEFILE_LIST) \
