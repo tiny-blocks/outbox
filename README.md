@@ -75,6 +75,10 @@ CREATE TABLE outbox_events
 The library writes to `id`, `aggregate_id`, `aggregate_type`, `event_type`, `revision`, `aggregate_version`, `payload`,
 and `occurred_at`. It never writes to `created_at`. The database fills it automatically.
 
+`occurred_at` is copied from the record's `occurredAt`, which `tiny-blocks/building-blocks` resolves from the explicit
+argument to `EventRecord::from()`, then the event's own `occurredAt()`, then the current moment. The outbox never reads
+the clock itself.
+
 For aggregates whose identities are not UUID strings, use VARCHAR columns and configure `IdentityColumnType::STRING`
 (see [Customizing the table layout](#customizing-the-table-layout)):
 
