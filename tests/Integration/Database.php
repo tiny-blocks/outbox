@@ -10,6 +10,7 @@ use Exception;
 use Symfony\Component\Process\Process;
 use TinyBlocks\DockerContainer\MySQLDockerContainer;
 use TinyBlocks\EnvironmentVariable\EnvironmentVariable;
+use TinyBlocks\Time\Duration;
 
 final readonly class Database
 {
@@ -47,8 +48,8 @@ final readonly class Database
             new Process(['docker', 'rm', '-f', sprintf('tiny-blocks-reaper-%s', $this->host)])->run();
             new Process(['docker', 'rm', '-f', $this->host])->run();
 
-            MySQLDockerContainer::from(image: 'mysql:8.4', name: $this->host)
-                ->pullImage()
+            MySQLDockerContainer::from(image: 'mysql:8.4')
+                ->withName(name: $this->host)
                 ->withTimezone(timezone: 'UTC')
                 ->withUsername(user: $this->username)
                 ->withPassword(password: $this->password)
@@ -57,7 +58,7 @@ final readonly class Database
                 ->withRootPassword(rootPassword: 'root')
                 ->withGrantedHosts()
                 ->withoutAutoRemove()
-                ->withReadinessTimeout(timeoutInSeconds: 60)
+                ->withReadinessTimeout(timeout: Duration::fromSeconds(seconds: 60))
                 ->run();
         }
     }
