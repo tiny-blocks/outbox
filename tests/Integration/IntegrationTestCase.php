@@ -17,11 +17,6 @@ abstract class IntegrationTestCase extends TestCase
         self::$connection = Database::instance()->connection();
     }
 
-    protected static function registerTableForCleanup(string $tableName): void
-    {
-        self::$customTables[] = $tableName;
-    }
-
     protected function tearDown(): void
     {
         if (self::$connection->isTransactionActive()) {
@@ -33,5 +28,10 @@ abstract class IntegrationTestCase extends TestCase
         }
 
         self::$customTables = [];
+    }
+
+    protected static function registerTableForCleanup(string $tableName): void
+    {
+        self::$customTables[] = $tableName;
     }
 }

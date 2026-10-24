@@ -13,16 +13,6 @@ final readonly class UniqueConstraint
     }
 
     /**
-     * Creates a UniqueConstraint using the default constraint name.
-     *
-     * @return UniqueConstraint The default unique constraint.
-     */
-    public static function default(): UniqueConstraint
-    {
-        return UniqueConstraint::named(name: 'unq_outbox_events_aggregate_type_aggregate_id_aggregate_version');
-    }
-
-    /**
      * Creates a UniqueConstraint with the explicit constraint name.
      *
      * @param string $name The physical name of the unique constraint in the outbox table.
@@ -31,6 +21,16 @@ final readonly class UniqueConstraint
     public static function named(string $name): UniqueConstraint
     {
         return new UniqueConstraint(name: $name);
+    }
+
+    /**
+     * Creates a UniqueConstraint using the default constraint name.
+     *
+     * @return UniqueConstraint The default unique constraint.
+     */
+    public static function default(): UniqueConstraint
+    {
+        return UniqueConstraint::named(name: 'unq_outbox_events_aggregate_type_aggregate_id_aggregate_version');
     }
 
     /**
