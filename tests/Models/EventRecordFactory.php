@@ -10,7 +10,6 @@ use TinyBlocks\BuildingBlocks\Event\DomainEvent;
 use TinyBlocks\BuildingBlocks\Event\EventRecord;
 use TinyBlocks\BuildingBlocks\Utc;
 use TinyBlocks\BuildingBlocks\Uuid;
-use TinyBlocks\Time\Instant;
 
 final readonly class EventRecordFactory
 {
@@ -22,7 +21,7 @@ final readonly class EventRecordFactory
         DomainEvent $event,
         string $aggregateType,
         ?UuidInterface $id = null,
-        ?Instant $occurredAt = null,
+        ?Utc $occurredAt = null,
         ?string $aggregateId = null,
         ?AggregateVersion $aggregateVersion = null
     ): EventRecord {
@@ -32,7 +31,7 @@ final readonly class EventRecordFactory
             aggregateType: $aggregateType,
             aggregateVersion: ($aggregateVersion ?? AggregateVersion::first()),
             id: is_null($id) ? null : Uuid::from(value: $id->toString()),
-            occurredAt: is_null($occurredAt) ? null : Utc::fromIso8601(value: $occurredAt->toIso8601())
+            occurredAt: $occurredAt
         );
     }
 }
