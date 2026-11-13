@@ -20,6 +20,7 @@ use Test\TinyBlocks\Outbox\Unit\OrderPlacedSerializer;
 use TinyBlocks\BuildingBlocks\Aggregate\AggregateVersion;
 use TinyBlocks\BuildingBlocks\Event\EventRecords;
 use TinyBlocks\BuildingBlocks\Event\IntegrationEventTranslators;
+use TinyBlocks\BuildingBlocks\Utc;
 use TinyBlocks\Outbox\DoctrineOutboxRepository;
 use TinyBlocks\Outbox\Exceptions\DuplicateAggregateVersion;
 use TinyBlocks\Outbox\Exceptions\DuplicateOutboxEvent;
@@ -31,7 +32,6 @@ use TinyBlocks\Outbox\Schema\IdentityColumnType;
 use TinyBlocks\Outbox\Schema\TableLayout;
 use TinyBlocks\Outbox\Serialization\PayloadSerializerReflection;
 use TinyBlocks\Outbox\Serialization\PayloadSerializers;
-use TinyBlocks\Time\Instant;
 
 final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
 {
@@ -319,7 +319,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         $repository->push(records: EventRecords::createFrom(elements: [
             EventRecordFactory::create(
                 event: new OrderPlaced(),
-                occurredAt: Instant::fromString(value: '2024-06-01 12:00:00.000000'),
+                occurredAt: Utc::fromIso8601(value: '2024-06-01T12:00:00.654321+00:00'),
                 aggregateType: 'Order',
                 aggregateVersion: AggregateVersion::of(value: 3)
             )
@@ -352,8 +352,8 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
         /** @And the aggregate_type is correct */
         self::assertSame('Order', $row['aggregate_type']);
 
-        /** @And the occurred_at is stored */
-        self::assertStringStartsWith('2024-06-01', $row['occurred_at']);
+        /** @And the occurred_at is stored with its microseconds */
+        self::assertSame('2024-06-01 12:00:00.654321', $row['occurred_at']);
     }
 
     public function testPushWhenCustomTableNameThenRecordStoredInCustomTable(): void
@@ -891,7 +891,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
                 EventRecordFactory::create(
                     id: Uuid::fromString('550e8400-e29b-41d4-a716-446655440000'),
                     event: new OrderPlaced(),
-                    occurredAt: Instant::fromString(value: '2021-01-01T00:00:00+00:00'),
+                    occurredAt: Utc::fromIso8601(value: '2021-01-01T00:00:00.123456+00:00'),
                     aggregateId: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
                     aggregateType: 'Order'
                 )
@@ -908,7 +908,7 @@ final class DoctrineOutboxRepositoryTest extends IntegrationTestCase
                 'revision'         => 1,
                 'aggregateVersion' => 1,
                 'payload'          => '{}',
-                'occurredAt'       => '2021-01-01T00:00:00+00:00'
+                'occurredAt'       => '2021-01-01T00:00:00.123456+00:00'
             ],
             $capturedParameters
         );

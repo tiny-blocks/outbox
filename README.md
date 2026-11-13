@@ -77,7 +77,9 @@ and `occurred_at`. It never writes to `created_at`. The database fills it automa
 
 `occurred_at` is copied from the record's `occurredAt`, which `tiny-blocks/building-blocks` resolves from the explicit
 argument to `EventRecord::from()`, then the event's own `occurredAt()`, then the current moment. The outbox never reads
-the clock itself.
+the clock itself. The value is written with microsecond precision (e.g. `2026-02-13T08:49:44.931408+00:00`), so a
+`TIMESTAMP(6)` column keeps the fractional second. Up to 6.x the value was cut to the second, because
+`tiny-blocks/building-blocks` 6.x truncated it. 7.0 requires building-blocks 7.0, which keeps the microseconds.
 
 For aggregates whose identities are not UUID strings, use VARCHAR columns and configure `IdentityColumnType::STRING`
 (see [Customizing the table layout](#customizing-the-table-layout)):
