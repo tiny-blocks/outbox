@@ -7,16 +7,17 @@ namespace Test\TinyBlocks\Outbox\Integration;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Exception;
-use Symfony\Component\Process\Process;
 use TinyBlocks\DockerContainer\MySQLDockerContainer;
 use TinyBlocks\EnvironmentVariable\EnvironmentVariable;
 use TinyBlocks\Time\Duration;
 
 final readonly class Database
 {
+    private const int PORT = 3306;
+
     private function __construct(
         private string $host,
-        private string $port,
+        private string $network,
         private string $database,
         private string $password,
         private string $username
@@ -25,15 +26,15 @@ final readonly class Database
 
     public static function instance(): Database
     {
-        $host = EnvironmentVariable::from(name: 'DATABASE_HOST')->toString();
-        $port = EnvironmentVariable::from(name: 'TEST_DB_HOST_PORT')->toString();
+        $template = 'outbox-test-db-%s';
+        $network = EnvironmentVariable::from(name: 'TEST_NETWORK')->toString();
         $database = EnvironmentVariable::from(name: 'DATABASE_NAME')->toString();
         $username = EnvironmentVariable::from(name: 'DATABASE_USER')->toString();
         $password = EnvironmentVariable::from(name: 'DATABASE_PASSWORD')->toString();
 
         return new Database(
-            host: $host,
-            port: $port,
+            host: sprintf($template, gethostname()),
+            network: $network,
             database: $database,
             password: $password,
             username: $username
@@ -45,29 +46,26 @@ final readonly class Database
         try {
             $this->connection()->executeQuery('SELECT 1');
         } catch (Exception) {
-            new Process(['docker', 'rm', '-f', sprintf('tiny-blocks-reaper-%s', $this->host)])->run();
-            new Process(['docker', 'rm', '-f', $this->host])->run();
-
             MySQLDockerContainer::from(image: 'mysql:8.4')
                 ->withName(name: $this->host)
+                ->withNetwork(name: $this->network)
                 ->withTimezone(timezone: 'UTC')
                 ->withUsername(user: $this->username)
                 ->withPassword(password: $this->password)
                 ->withDatabase(database: $this->database)
-                ->withPortMapping(portOnHost: (int)$this->port, portOnContainer: 3306)
                 ->withRootPassword(rootPassword: 'root')
                 ->withGrantedHosts()
-                ->withoutAutoRemove()
+                ->withEphemeralStorage()
                 ->withReadinessTimeout(timeout: Duration::fromSeconds(seconds: 60))
-                ->run();
+                ->runIfNotExists();
         }
     }
 
     public function connection(): Connection
     {
         return DriverManager::getConnection(params: [
-            'host'     => '127.0.0.1',
-            'port'     => (int)$this->port,
+            'host'     => $this->host,
+            'port'     => self::PORT,
             'user'     => $this->username,
             'driver'   => 'pdo_mysql',
             'dbname'   => $this->database,
