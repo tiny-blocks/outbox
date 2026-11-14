@@ -14,11 +14,17 @@ PHP_VERSION := $(shell sed -n 's/.*"php": *"^\([0-9]*\.[0-9]*\)".*/\1/p' compose
 PHP_IMAGE := gustavofreze/php:${PHP_VERSION}-cli
 WORKSPACE := /var/www/html
 
+TEST_NETWORK := outbox-test
+
 DOCKER_RUN = docker run ${PLATFORM} -u ${HOST_USER} --rm ${TTY} --net=host \
+	-e COMPOSER_HOME=/tmp/composer \
+	-v ${PWD}:${WORKSPACE} \
+	${PHP_IMAGE}
+
+DOCKER_TEST_RUN = docker run ${PLATFORM} -u ${HOST_USER} --rm ${TTY} --network ${TEST_NETWORK} \
 	$(if $(DOCKER_GID),--group-add $(DOCKER_GID)) \
 	-e COMPOSER_HOME=/tmp/composer \
-	-e DATABASE_HOST=outbox-test-db \
-	-e TEST_DB_HOST_PORT=33306 \
+	-e TEST_NETWORK=${TEST_NETWORK} \
 	-e DATABASE_NAME=outbox_test \
 	-e DATABASE_USER=outbox \
 	-e DATABASE_PASSWORD=outbox \
@@ -42,11 +48,13 @@ configure-and-update: ## Configure development environment and update dependenci
 
 .PHONY: tests
 tests: ## Run unit and mutation tests with coverage
-	@${DOCKER_RUN} composer tests
+	@docker network inspect ${TEST_NETWORK} > /dev/null 2>&1 || docker network create ${TEST_NETWORK} > /dev/null
+	@${DOCKER_TEST_RUN} composer tests
 
 .PHONY: test-file
 test-file: ## Run tests for a specific file (usage: make test-file FILE=ClassNameTest)
-	@${DOCKER_RUN} composer test-file ${FILE}
+	@docker network inspect ${TEST_NETWORK} > /dev/null 2>&1 || docker network create ${TEST_NETWORK} > /dev/null
+	@${DOCKER_TEST_RUN} composer test-file ${FILE}
 
 .PHONY: review
 review: ## Run lint and static analysis
